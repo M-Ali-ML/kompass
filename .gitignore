@@ -1,0 +1,20 @@
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Build
+node_modules/
+
+
+# python venv
+venv/
+.venv/
+
+# logs
+logs/
+*.log
+
+# .env files
+.env
+.env.*
