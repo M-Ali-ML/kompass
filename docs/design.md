@@ -1,39 +1,36 @@
-# Candy — Playful & Vibrant
+# Kompass App: Design & Styling System (Post-Building)
 
-## North Star: "Joyful Pop"
+This document tracks the *actual* implemented design and styling of the Kompass application, contrasting it with target UI guidelines.
 
-Bold, fun, and energetic. Saturated colors, pill-shaped elements, and bouncy microinteractions. Designed to delight.
+---
 
-## Colors
+## 1. Current Design Status
+The application is currently in its scaffolded baseline state, utilizing the default styling provided by `create-next-app`.
 
-- **Primary (`#e040a0`):** Hot pink — primary actions and brand identity.
-- **Secondary (`#7c52aa`):** Purple — secondary elements, tags, categories.
-- **Tertiary (`#0096cc`):** Sky blue — informational, links, highlights.
-- **Background (`#fef7ff`):** Very light pink-white — warm and playful.
-- Use all three accent colors freely but with purpose. This palette is expressive.
+* **Styling Technology:** Tailwind CSS.
+* **Global Stylesheet:** [globals.css](file:///Users/aly/repos/kompass/frontend/app/globals.css) containing standard Tailwind utility layer imports.
+* **Base Layout:** [layout.js](file:///Users/aly/repos/kompass/frontend/app/layout.js) displaying a vertical layout.
+* **Typography:** Default browser sans-serif font family.
+* **Color Palette:** Grayscale (Zinc/Black theme).
 
-## Typography
+---
 
-- **All fonts:** DM Sans — rounded, friendly, modern.
-- Use bold weight for headings, medium for labels. Generous line-height.
-- Slightly larger base size (16px body) for friendliness.
+## 2. Design System Gap Analysis
 
-## Shapes & Motion
+| Attribute | Currently Implemented | Target Blueprint ("Candy" Theme) | Status |
+| :--- | :--- | :--- | :--- |
+| **Theme / Vibe** | Standard corporate minimalist | "Joyful Pop" (Bold, fun, energetic) | 🔴 Pending |
+| **Color Palette** | Zinc-50 / Black | Hot Pink (`#e040a0`), Purple (`#7c52aa`), Sky Blue (`#0096cc`), Warm Pink-White Background (`#fef7ff`) | 🔴 Pending |
+| **Typography** | Sans-Serif | DM Sans (Rounded, friendly, bold headings) | 🔴 Pending |
+| **Corner Radius** | Tailwind full/standard | Full/pill on buttons, 16px-20px on cards | 🔴 Pending |
+| **Animations** | Default transitions | Bouncy hover transitions (`scale(1.03)` spring effect) | 🔴 Pending |
+| **Shadows** | None / Default | Tinted shadows matching the element color at 15-20% opacity | 🔴 Pending |
 
-- **Border radius:** Full/pill on buttons and badges. 16-20px on cards.
-- **Microinteractions:** Bouncy hover transitions (`transform: scale(1.03)`, spring-like timing).
-- **Shadows:** Colorful — use tinted shadows matching the element color at 15-20% opacity.
-  Example: pink button gets `box-shadow: 0 4px 16px rgba(224, 64, 160, 0.2)`.
+---
 
-## Components
+## 3. UI Component Status
 
-- **Buttons:** Pill-shaped, solid fill, tinted shadow. Hover = slight scale + deeper shadow.
-- **Cards:** Large radius (16px), white fill, tinted shadow. Hover = lift animation.
-- **Badges/Tags:** Pill-shaped, pastel fill (`primary_fixed`), bold text.
-- **Inputs:** Rounded (full radius), light fill, pink focus ring.
-
-## Rules
-
-- Embrace color contrast and saturation. Nothing should feel washed out.
-- Rounded shapes everywhere — no sharp corners in this system.
-- Animations should feel bouncy and playful, not stiff. Use ease-out curves.
+* **Header/Branding:** Standard Vercel/Next logos. No custom "Joyful Pop" brand elements.
+* **Chat Window:** Not yet implemented. Needs custom inputs with pink focus rings and pill-shaped send buttons.
+* **Travel Scenarios Comparison Table:** Not yet implemented. Needs 16px white card panels with lift hover animations.
+* **Map Display:** Not yet implemented.

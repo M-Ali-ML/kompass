@@ -1,0 +1,18 @@
+[project]
+name = "backend"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "copilotkit>=0.1.94",
+    "google-genai>=2.9.0",
+    "langfuse>=4.9.1",
+    "mcp>=1.28.0",
+    "pydantic-ai>=1.107.0",
+    "sqlalchemy>=2.0.51",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
