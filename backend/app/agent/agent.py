@@ -1,11 +1,17 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from pydantic_ai import Agent, RunContext
 from app.domain.models import ScenarioMatrix
 from app.agent.dependency import AgentDependencies
 
+# Load the LLM model from the environment variable (default: google:gemini-2.5-flash)
+llm_model = os.getenv("LLM_MODEL", "google:gemini-2.5-flash")
+
 # Define the PydanticAI Agent
-# Note: For Gemini, model string could be 'gemini-1.5-flash' depending on provider setup.
 kompass_agent = Agent(
-    'gemini-1.5-flash',
+    llm_model,
     deps_type=AgentDependencies,
     output_type=ScenarioMatrix,
     system_prompt=(

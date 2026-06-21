@@ -34,7 +34,8 @@ The system consists of a Python FastAPI backend and a Next.js frontend, utilizin
                v (Adapter)    v (Adapter)   v (Adapter)
        +---------------+ +------------+ +------------+
        | SQLite DB     | | Mock       | | Mock       |
-       | (kompass.db)  | | Service    | | Service    |
+       | (data/        | | Service    | | Service    |
+       | kompass.db)   | |            | |            |
        +---------------+ +------------+ +------------+
 ```
 
@@ -62,7 +63,7 @@ Located in `backend/app/ports/`:
 
 ### C. Adapters (Implementations)
 Located in `backend/app/adapters/`:
-* [db_sqlite.py](file:///Users/aly/repos/kompass/backend/app/adapters/db_sqlite.py): `SQLiteTripRepository` - stores data locally in a `kompass.db` file.
+* [db_sqlite.py](file:///Users/aly/repos/kompass/backend/app/adapters/db_sqlite.py): `SQLiteTripRepository` - stores data locally in the `backend/data/kompass.db` file.
 * [fli_flights.py](file:///Users/aly/repos/kompass/backend/app/adapters/fli_flights.py): `FliFlightService` - simulates network delays and returns randomized mock flight data.
 * [openbnb_stays.py](file:///Users/aly/repos/kompass/backend/app/adapters/openbnb_stays.py): `AirbnbStayService` - simulates network delays and returns randomized mock stay data.
 * [search_brave.py](file:///Users/aly/repos/kompass/backend/app/adapters/search_brave.py): `BraveSearchService` - simulates web search returns.
@@ -72,7 +73,7 @@ Located in `backend/app/adapters/`:
 ## 3. PydanticAI Agent Layer
 The agent framework is managed via PydanticAI.
 
-* **Agent Definition:** [agent.py](file:///Users/aly/repos/kompass/backend/app/agent/agent.py) instantiates `kompass_agent` using model `'gemini-1.5-flash'` with structured output enforcement for `ScenarioMatrix`.
+* **Agent Definition:** [agent.py](file:///Users/aly/repos/kompass/backend/app/agent/agent.py) instantiates `kompass_agent` using model `'google:gemini-3.5-flash'` with structured output enforcement for `ScenarioMatrix`.
 * **Agent Tools:**
   * `check_flights`: Calls the flight service adapter.
   * `check_stays`: Calls the stays service adapter.

@@ -1,12 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import TopAppBar from "../components/TopAppBar";
-import LeftSidebar from "../components/LeftSidebar";
 import ChatPane from "../components/ChatPane";
-import LiveTimeline from "../components/LiveTimeline";
-import MapDrawer from "../components/MapDrawer";
-import ComparisonDashboard from "../components/ComparisonDashboard";
+import { Compass } from "lucide-react";
 
 // Pre-packaged Mock Scenarios for Bali and Tokyo for immediate interaction & API offline fallback
 const MOCK_BALI_SCENARIOS = [
@@ -22,6 +18,29 @@ const MOCK_BALI_SCENARIOS = [
       "Private speedboat day-trip to Nusa Penida highlights",
       "Sunset seafood dinner at Jimbaran beach",
       "VIP daybed at Potato Head Beach Club"
+    ],
+    flights: [
+      {
+        airline: "Singapore Airlines",
+        flight_number: "SQ 938",
+        departure_time: "08:20",
+        arrival_time: "11:00",
+        origin: "SIN",
+        destination: "DPS",
+        duration_minutes: 160,
+        price_usd: 280.0
+      }
+    ],
+    stays: [
+      {
+        name: "Potato Head Suites",
+        location: "Seminyak, Bali",
+        check_in: "Day 1",
+        check_out: "Day 5",
+        rating: 4.8,
+        price_per_night_usd: 250.0,
+        total_price_usd: 1000.0
+      }
     ],
     days: [
       {
@@ -78,6 +97,29 @@ const MOCK_BALI_SCENARIOS = [
       "Purification ritual water blessing at Tirta Empul",
       "Traditional Balinese cooking class in organic garden",
       "Sunrise trekking at Tegalalang Rice Terraces"
+    ],
+    flights: [
+      {
+        airline: "Singapore Airlines",
+        flight_number: "SQ 938",
+        departure_time: "08:20",
+        arrival_time: "11:00",
+        origin: "SIN",
+        destination: "DPS",
+        duration_minutes: 160,
+        price_usd: 280.0
+      }
+    ],
+    stays: [
+      {
+        name: "Ubud Jungle Resort",
+        location: "Ubud, Bali",
+        check_in: "Day 1",
+        check_out: "Day 5",
+        rating: 4.7,
+        price_per_night_usd: 180.0,
+        total_price_usd: 720.0
+      }
     ],
     days: [
       {
@@ -138,6 +180,29 @@ const MOCK_TOKYO_SCENARIOS = [
       "Digital art immersive ticket to teamLab Borderless",
       "Shibuya Crossing sky-deck sunset view"
     ],
+    flights: [
+      {
+        airline: "Japan Airlines",
+        flight_number: "JL 712",
+        departure_time: "22:00",
+        arrival_time: "06:15",
+        origin: "SIN",
+        destination: "HND",
+        duration_minutes: 435,
+        price_usd: 620.0
+      }
+    ],
+    stays: [
+      {
+        name: "Shibuya Stream Excel Hotel Tokyu",
+        location: "Shibuya, Tokyo",
+        check_in: "Day 1",
+        check_out: "Day 5",
+        rating: 4.6,
+        price_per_night_usd: 280.0,
+        total_price_usd: 1120.0
+      }
+    ],
     days: [
       {
         day_number: 1,
@@ -184,27 +249,19 @@ const MOCK_TOKYO_SCENARIOS = [
 ];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState("chat");
   const [currentDestination, setCurrentDestination] = useState("Bali, Indonesia");
   const [constraints, setConstraints] = useState(["$2500 Budget", "No License", "Vegetarian"]);
   const [activeVibes, setActiveVibes] = useState(["Beach Bliss", "Cultural Immersion"]);
   const [travelers, setTravelers] = useState(2);
-  const [savedAssets, setSavedAssets] = useState([]);
-  const [isMapOpen, setIsMapOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  
-  const [itineraries, setItineraries] = useState(MOCK_BALI_SCENARIOS);
-  const [activeItineraryId, setActiveItineraryId] = useState("bali-beach-bliss");
   
   const [messages, setMessages] = useState([
     {
       role: "agent",
-      content: "Hello! I am Kompass, your autonomous travel planner. I see you want to go to Bali with 2 travelers, a $2500 budget, and no driver's license.\n\nI have generated two distinct travel plans for you: \n\n🌴 **Plan A** focuses on beach clubs, coastal Nusa Penida speedboats, and beach resorts.\n🧘 **Plan B** is a deeply relaxing, cultural retreat in the heart of Ubud's jungles.\n\nSelect a scenario on the right or ask me to adjust things (e.g. 'Add a surfing lesson on Day 2')",
-      widget: "vibe_selector"
+      content: "Hello! I am Kompass, your autonomous travel planner. I see you want to go to Bali with 2 travelers, a $2500 budget, and no driver's license.\n\nI have generated two distinct travel plans for you: \n\n🌴 **Plan A** focuses on beach clubs, coastal Nusa Penida speedboats, and beach resorts.\n🧘 **Plan B** is a deeply relaxing, cultural retreat in the heart of Ubud's jungles.\n\nSelect a plan below to view details, or ask me to adjust things (e.g. 'Add a surfing lesson on Day 2')",
+      scenarios: MOCK_BALI_SCENARIOS
     }
   ]);
-
-  const activeItinerary = itineraries.find((p) => p.id === activeItineraryId) || itineraries[0];
 
   const handleSendMessage = async (text) => {
     // 1. Add User Message
@@ -245,6 +302,8 @@ export default function Home() {
             estimated_cost_usd: sc.grand_total_usd || 1500,
             stress_score: sc.stress_score || 2,
             highlights: sc.summary ? [sc.summary] : ["AI Generated travel itinerary"],
+            flights: sc.flights || [],
+            stays: sc.stays || [],
             days: sc.itinerary?.map((day) => ({
               day_number: day.day_number,
               title: day.title || `Day ${day.day_number}`,
@@ -258,12 +317,10 @@ export default function Home() {
             })) || []
           }));
 
-          setItineraries(mapped);
-          setActiveItineraryId(mapped[0].id);
           setMessages((prev) => [...prev, {
             role: "agent",
             content: `I've successfully updated your scenarios for ${updatedDestination}! Here are the updated plans.`,
-            widget: "traveler_counter"
+            scenarios: mapped
           }]);
           setIsGenerating(false);
           return;
@@ -276,118 +333,75 @@ export default function Home() {
     // 3. Fallback Local Simulation
     setTimeout(() => {
       let responseText = "";
+      let mockScenarios = [];
       if (isTokyo) {
-        setItineraries(MOCK_TOKYO_SCENARIOS);
-        setActiveItineraryId("tokyo-neon-cyber");
+        mockScenarios = JSON.parse(JSON.stringify(MOCK_TOKYO_SCENARIOS));
         responseText = "Understood! I've loaded a premium 5-day cyberpunk Tokyo itinerary for you. We'll explore Shibuya Sky, Akihabara gaming arcades, and the breathtaking teamLab Borderless digital arts museum.";
       } else {
         // Just simulate modifying current Bali plan
-        const updated = [...itineraries];
+        mockScenarios = JSON.parse(JSON.stringify(MOCK_BALI_SCENARIOS));
         if (text.toLowerCase().includes("surf") || text.toLowerCase().includes("lesson")) {
           responseText = "Added a custom Private Surf Lesson to Day 2 morning! The stress index remains highly relaxed.";
-          // Update surf activity
-          if (updated[0] && updated[0].days[1]) {
-            updated[0].days[1].activities.unshift({
+          if (mockScenarios[0] && mockScenarios[0].days[1]) {
+            mockScenarios[0].days[1].activities.unshift({
               id: "b-surf",
               title: "🎓 Added: Private Surf Lesson",
               description: "Learn to catch waves at Double Six Beach with local certified guides.",
               time: "09:00",
               cost_usd: 35
             });
-            updated[0].estimated_cost_usd += 35;
+            mockScenarios[0].estimated_cost_usd += 35;
           }
         } else {
           responseText = "Processed your request. I've updated the itinerary details and optimized the pricing breakdown according to your constraints.";
         }
-        setItineraries(updated);
       }
 
       setMessages((prev) => [...prev, {
         role: "agent",
         content: responseText,
-        widget: isTokyo ? "traveler_counter" : "vibe_selector"
+        scenarios: mockScenarios
       }]);
       setIsGenerating(false);
     }, 2500);
   };
 
-  const handleNewTrip = () => {
-    setMessages([]);
-    setSavedAssets([]);
-    setConstraints(["$2500 Budget"]);
-    setActiveVibes([]);
-    setTravelers(1);
-    setItineraries([]);
-  };
-
-  const handleSearchDestination = (val) => {
-    setCurrentDestination(val);
-  };
-
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
-      {/* Navbar */}
-      <TopAppBar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab}
-        currentDestination={currentDestination}
-        onSearchDestination={handleSearchDestination}
-      />
-
-      {/* Main Workspace Frame */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Control Panel */}
-        <LeftSidebar 
-          constraints={constraints}
-          setConstraints={setConstraints}
-          savedAssets={savedAssets}
-          setSavedAssets={setSavedAssets}
-          onNewTrip={handleNewTrip}
-        />
-
-        {/* Content Pane Switcher */}
-        {activeTab === "chat" ? (
-          <div className="flex flex-1 overflow-hidden">
-            {/* Center Chat Dialog */}
-            <ChatPane 
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              isGenerating={isGenerating}
-              activeVibes={activeVibes}
-              setActiveVibes={setActiveVibes}
-              travelers={travelers}
-              setTravelers={setTravelers}
-            />
-
-            {/* Right Live Itinerary Timeline */}
-            <LiveTimeline 
-              itinerary={activeItinerary}
-              savedAssets={savedAssets}
-              setSavedAssets={setSavedAssets}
-              onToggleMap={() => setIsMapOpen(true)}
-              isMapOpen={isMapOpen}
-            />
+    <div className="flex flex-col h-screen overflow-hidden bg-background">
+      {/* Minimal Header */}
+      <header className="flex items-center justify-between px-6 py-4 bg-surface border-b border-pink-100 pink-shadow shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-primary text-white rounded-2xl bouncy-hover pink-shadow">
+            <Compass className="w-6 h-6" />
           </div>
-        ) : (
-          /* Comparison matrix dashboard */
-          <ComparisonDashboard 
-            itineraries={itineraries}
-            activeItineraryId={activeItineraryId}
-            onSelectActive={(id) => {
-              setActiveItineraryId(id);
-              setActiveTab("chat"); // Return to chat focus
-            }}
-          />
-        )}
-      </div>
+          <span className="text-xl font-bold tracking-tight text-foreground">
+            Kompass<span className="text-primary">.ai</span>
+            <span className="ml-2 text-xs font-semibold uppercase tracking-widest bg-pink-100 text-primary px-2 py-0.5 rounded-full">
+              Agent MVP
+            </span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs font-bold text-muted">Agent System Online</span>
+        </div>
+      </header>
 
-      {/* Interactive Map Drawer (FAB toggle) */}
-      <MapDrawer 
-        isOpen={isMapOpen}
-        onClose={() => setIsMapOpen(false)}
-        destination={currentDestination}
-        itinerary={activeItinerary}
-      />
+      {/* Main Workspace Frame - Simplified to only ChatPane */}
+      <div className="flex flex-1 overflow-hidden justify-center">
+        <div className="w-full max-w-4xl h-full border-x border-pink-100 bg-white">
+          <ChatPane 
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            isGenerating={isGenerating}
+            activeVibes={activeVibes}
+            setActiveVibes={setActiveVibes}
+            travelers={travelers}
+            setTravelers={setTravelers}
+          />
+        </div>
+      </div>
     </div>
   );
 }
+

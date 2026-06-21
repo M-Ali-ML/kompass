@@ -9,6 +9,7 @@ dependencies = [
     "mcp>=1.28.0",
     "pydantic-ai>=1.107.0",
     "sqlalchemy>=2.0.51",
+    "python-dotenv>=1.0.1",
 ]
 
 [dependency-groups]

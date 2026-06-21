@@ -226,6 +226,7 @@ dependencies = [
     { name = "langfuse" },
     { name = "mcp" },
     { name = "pydantic-ai" },
+    { name = "python-dotenv" },
     { name = "sqlalchemy" },
 ]
 
@@ -242,6 +243,7 @@ requires-dist = [
     { name = "langfuse", specifier = ">=4.9.1" },
     { name = "mcp", specifier = ">=1.28.0" },
     { name = "pydantic-ai", specifier = ">=1.107.0" },
+    { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "sqlalchemy", specifier = ">=2.0.51" },
 ]
 

@@ -1,13 +1,22 @@
 import sqlite3
 import json
+import os
+from pathlib import Path
 from typing import List, Optional
 from app.domain.models import ScenarioMatrix, UserPreferenceProfile
 from app.ports.repository import TripRepositoryPort
 
 class SQLiteTripRepository(TripRepositoryPort):
-    def __init__(self, db_path: str = "kompass.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None):
+        if db_path is None:
+            backend_dir = Path(__file__).resolve().parent.parent.parent
+            db_dir = backend_dir / "data"
+            os.makedirs(db_dir, exist_ok=True)
+            self.db_path = str(db_dir / "kompass.db")
+        else:
+            self.db_path = db_path
         self._init_db()
+
 
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
