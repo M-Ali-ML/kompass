@@ -5,6 +5,12 @@ This skill defines how coding agents must maintain daily session logs in the `se
 
 ---
 
+## Core Development Philosophies (Always Follow)
+* **Start Very Simple**: Do not attempt to build a complex agent or fully-featured application immediately. Start with a minimal, working prototype/baseline and build up incrementally.
+* **Test-Driven Development (TDD)**: Do not engage in "pure vibe coding" of a full application without verifying correctness. Write tests first and fully implement TDD per [tdd.md](file:///Users/aly/repos/kompass/.agents/rules/tdd.md) to ensure each vertical slice of behavior is verified before expanding.
+
+---
+
 ## When to Execute this Skill
 You **MUST** invoke this skill and update the current daily session log:
 1. **At the end of a session/turn:** Before wrapping up your response, ensure the log reflects everything done.

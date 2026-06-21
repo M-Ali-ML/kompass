@@ -1,14 +1,14 @@
 import pytest
 from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel
-from app.agent.agent import kompass_agent, check_flights, check_stays, web_search
+from app.agent.agent import kompass_agent, check_flights, check_stays, web_search, run_kompass_agent, handle_chat_session
 from app.agent.dependency import AgentDependencies
 from app.domain.models import ScenarioMatrix, ItineraryScenario
 from app.ports.flight_service import FlightServicePort
 from app.ports.stay_service import StayServicePort
 from app.ports.search_service import SearchServicePort
 from app.ports.repository import TripRepositoryPort
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 @pytest.fixture
 def mock_dependencies():
@@ -111,3 +111,80 @@ async def test_agent_structured_response(mock_dependencies):
     assert len(result.output.scenarios) == 1
     assert result.output.scenarios[0].title == "Mock Plan"
     assert result.output.active_constraints == ["$500 budget"]
+
+
+@pytest.mark.asyncio
+async def test_run_kompass_agent(mock_dependencies):
+    expected_matrix = ScenarioMatrix(
+        scenarios=[
+            ItineraryScenario(
+                scenario_id="sc1",
+                title="Mock Plan",
+                summary="Summary text",
+                transportation_subtotal_usd=100.0,
+                accommodation_subtotal_usd=200.0,
+                grand_total_usd=300.0,
+                stress_score=2,
+                flights=[],
+                stays=[],
+                itinerary=[]
+            )
+        ],
+        active_constraints=["$500 budget"]
+    )
+    
+    test_model = TestModel(custom_output_args=expected_matrix)
+    
+    output = await run_kompass_agent(
+        "Generate a trip plan for NYC",
+        deps=mock_dependencies,
+        model=test_model
+    )
+    
+    assert isinstance(output, ScenarioMatrix)
+    assert len(output.scenarios) == 1
+    assert output.scenarios[0].title == "Mock Plan"
+    assert output.active_constraints == ["$500 budget"]
+
+
+@pytest.mark.asyncio
+@patch("app.agent.agent.get_agent_dependencies")
+async def test_handle_chat_session(mock_get_deps, mock_dependencies):
+    mock_get_deps.return_value = mock_dependencies
+    mock_dependencies.repository.append_message = AsyncMock()
+    mock_dependencies.repository.save_scenario_matrix = AsyncMock()
+    
+    expected_matrix = ScenarioMatrix(
+        scenarios=[
+            ItineraryScenario(
+                scenario_id="sc1",
+                title="Mock Plan",
+                summary="Summary text",
+                transportation_subtotal_usd=100.0,
+                accommodation_subtotal_usd=200.0,
+                grand_total_usd=300.0,
+                stress_score=2,
+                flights=[],
+                stays=[],
+                itinerary=[]
+            )
+        ],
+        active_constraints=["$500 budget"]
+    )
+    
+    test_model = TestModel(custom_output_args=expected_matrix)
+    
+    output = await handle_chat_session(
+        session_id="test_session_id",
+        user_prompt="Generate a trip plan for NYC",
+        model=test_model
+    )
+    
+    assert isinstance(output, ScenarioMatrix)
+    assert len(output.scenarios) == 1
+    assert output.scenarios[0].title == "Mock Plan"
+    
+    mock_get_deps.assert_called_once_with("test_session_id")
+    mock_dependencies.repository.append_message.assert_any_call("test_session_id", "user", "Generate a trip plan for NYC")
+    mock_dependencies.repository.save_scenario_matrix.assert_called_once_with("test_session_id", expected_matrix)
+    mock_dependencies.repository.append_message.assert_any_call("test_session_id", "agent", expected_matrix.model_dump_json())

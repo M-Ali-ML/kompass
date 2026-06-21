@@ -2,18 +2,14 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { 
-  Send, Bot, User, CheckSquare, Users, Sparkles, AlertCircle, Compass, 
-  Plane, Hotel, Calendar, DollarSign, Activity, X, Eye 
+  Send, Bot, User, Sparkles, Compass, 
+  Plane, Hotel, Calendar, DollarSign, X, Eye 
 } from "lucide-react";
 
 export default function ChatPane({ 
   messages, 
   onSendMessage, 
-  isGenerating, 
-  activeVibes, 
-  setActiveVibes, 
-  travelers, 
-  setTravelers 
+  isGenerating
 }) {
   const [inputValue, setInputValue] = useState("");
   const [activeDetailsScenario, setActiveDetailsScenario] = useState(null);
@@ -32,84 +28,6 @@ export default function ChatPane({
     if (!inputValue.trim()) return;
     onSendMessage(inputValue.trim());
     setInputValue("");
-  };
-
-  const toggleVibe = (vibe) => {
-    if (activeVibes.includes(vibe)) {
-      setActiveVibes(activeVibes.filter((v) => v !== vibe));
-    } else {
-      setActiveVibes([...activeVibes, vibe]);
-    }
-  };
-
-  const updateTravelers = (amount) => {
-    setTravelers(Math.max(1, travelers + amount));
-  };
-
-  // Render Custom Widgets based on message types or instructions
-  const renderWidget = (widgetType) => {
-    if (widgetType === "vibe_selector") {
-      const vibesList = ["Beach Bliss", "Mountain Adventure", "Cultural Immersion", "Nightlife Explorer", "Culinary Journey", "Wellness Retreat"];
-      return (
-        <div className="mt-3 p-4 bg-white border-2 border-accent/30 rounded-3xl blue-shadow flex flex-col gap-3 max-w-sm">
-          <div className="flex items-center gap-2">
-            <CheckSquare className="w-4 h-4 text-accent" />
-            <h4 className="text-xs font-extrabold text-secondary">Tune Trip Vibe Checklist</h4>
-          </div>
-          <p className="text-[10px] text-muted font-medium">Select one or more vibes to fine-tune the recommendation score:</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {vibesList.map((vibe) => {
-              const isSelected = activeVibes.includes(vibe);
-              return (
-                <button
-                  key={vibe}
-                  type="button"
-                  onClick={() => toggleVibe(vibe)}
-                  className={`px-2.5 py-1.5 text-[10px] font-bold rounded-full border transition-all text-left truncate bouncy-hover ${
-                    isSelected 
-                      ? "bg-accent/10 border-accent text-accent" 
-                      : "bg-pink-50/20 border-pink-100 text-foreground hover:bg-pink-50/50"
-                  }`}
-                >
-                  {vibe}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      );
-    }
-
-    if (widgetType === "traveler_counter") {
-      return (
-        <div className="mt-3 p-4 bg-white border-2 border-primary/30 rounded-3xl pink-shadow flex flex-col gap-3 max-w-sm">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-primary" />
-            <h4 className="text-xs font-extrabold text-secondary">Travelers Count</h4>
-          </div>
-          <p className="text-[10px] text-muted font-medium">Set the headcount to optimize accommodation and transit pricing:</p>
-          <div className="flex items-center gap-4 bg-pink-50/30 p-2 rounded-full border border-pink-100 max-w-[150px] justify-between self-center">
-            <button 
-              type="button"
-              onClick={() => updateTravelers(-1)}
-              className="w-8 h-8 rounded-full bg-white border border-pink-200 text-primary font-extrabold flex items-center justify-center hover:bg-primary hover:text-white hover:border-primary transition-all bouncy-hover"
-            >
-              -
-            </button>
-            <span className="text-sm font-extrabold text-foreground">{travelers}</span>
-            <button 
-              type="button"
-              onClick={() => updateTravelers(1)}
-              className="w-8 h-8 rounded-full bg-white border border-pink-200 text-primary font-extrabold flex items-center justify-center hover:bg-primary hover:text-white hover:border-primary transition-all bouncy-hover"
-            >
-              +
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    return null;
   };
 
   return (
@@ -135,24 +53,8 @@ export default function ChatPane({
             </div>
             <h3 className="text-base font-extrabold text-foreground">Welcome to Kompass.ai!</h3>
             <p className="text-xs font-medium text-muted leading-relaxed">
-              I am your autonomous travel architect. Ask me to plan a trip (e.g. <span className="text-primary font-bold">"Plan a 4-day budget-friendly trip to Bali with culture vibes"</span>).
+              I am your autonomous travel architect. Tell me where you want to go, and I'll generate custom itineraries for you.
             </p>
-            <div className="flex flex-col gap-2 w-full mt-2">
-              <button 
-                type="button"
-                onClick={() => onSendMessage("Plan a 5-day trip to Bali with 2 travelers")} 
-                className="w-full py-2.5 bg-white border border-pink-200 hover:border-primary text-xs font-bold text-secondary rounded-full bouncy-hover hover:pink-shadow text-center transition-all"
-              >
-                🌴 Bali Adventure (5 Days, 2 Travelers)
-              </button>
-              <button 
-                type="button"
-                onClick={() => onSendMessage("Create a Tokyo Itinerary focusing on food and culture, under $3000")} 
-                className="w-full py-2.5 bg-white border border-pink-200 hover:border-primary text-xs font-bold text-secondary rounded-full bouncy-hover hover:pink-shadow text-center transition-all"
-              >
-                🍣 Tokyo Food & Culture (under $3000)
-              </button>
-            </div>
           </div>
         ) : (
           messages.map((msg, index) => {
@@ -239,8 +141,7 @@ export default function ChatPane({
                       </div>
                     )}
 
-                    {/* Check if we have embedded widget parameters */}
-                    {isBot && msg.widget && renderWidget(msg.widget)}
+
                   </div>
                   <span className={`text-[9px] font-bold text-muted mt-1 px-1 ${isBot ? "self-start" : "self-end"}`}>
                     {isBot ? "Kompass" : "You"}
