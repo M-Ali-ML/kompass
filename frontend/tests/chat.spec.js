@@ -8,27 +8,27 @@ test.describe('Kompass Math Agent E2E Tests', () => {
     await expect(page.locator('header')).toContainText('Kompass');
     
     // Check initial agent message is visible
-    const firstAgentMessage = page.locator('[data-testid="message-agent"]').first();
+    const firstAgentMessage = page.locator('.copilotKitAssistantMessage').first();
     await expect(firstAgentMessage).toContainText('Hello! I am the Kompass Math Agent');
   });
 
   test('should accept user input and get a response from the agent calling the MCP tool', async ({ page }) => {
     await page.goto('/');
 
-    const input = page.locator('#message-input');
-    const sendButton = page.locator('#send-button');
+    const input = page.locator('.copilotKitInput textarea');
+    const sendButton = page.locator('button[aria-label="Send"]');
 
     // Type addition query
     await input.fill('What is 15 + 27?');
     await sendButton.click();
 
     // Verify user message appears in list
-    const userMessage = page.locator('[data-testid="message-user"]').first();
+    const userMessage = page.locator('.copilotKitUserMessage').first();
     await expect(userMessage).toContainText('What is 15 + 27?');
 
     // Wait for the agent's response. The agent will run, call calculate_sum, and respond.
     // The response should contain the correct result "42".
-    const lastAgentMessage = page.locator('[data-testid="message-agent"]').nth(1);
+    const lastAgentMessage = page.locator('.copilotKitAssistantMessage').last();
     await expect(lastAgentMessage).toContainText('42', { timeout: 15000 });
   });
 });
