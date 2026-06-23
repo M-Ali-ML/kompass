@@ -5,6 +5,7 @@ This document tracks the *actual* implemented design and styling of the Kompass 
 ---
 
 ## 1. Current Design Status
+
 The application is currently in its scaffolded baseline state, utilizing the default styling provided by `create-next-app`.
 
 * **Styling Technology:** Tailwind CSS.

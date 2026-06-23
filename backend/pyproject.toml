@@ -12,6 +12,7 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn>=0.28.0",
     "ag-ui-protocol>=0.1.13",
+    "pydantic-settings>=2.14.2",
 ]
 
 [dependency-groups]

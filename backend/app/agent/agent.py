@@ -1,16 +1,14 @@
-import os
 import logging
-from dotenv import load_dotenv
-load_dotenv()
-
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.usage import UsageLimits
+from app.config import settings
 from app.agent.dependency import AgentDependencies, get_agent_dependencies
 
 logger = logging.getLogger("kompass.agent")
 
-# Load the LLM model from the environment variable (default: google:gemini-2.5-flash)
-llm_model = os.getenv("LLM_MODEL", "google:gemini-2.5-flash")
+# Load the LLM model from settings
+llm_model = settings.llm_model
+
 
 # Define the PydanticAI Agent
 kompass_agent = Agent(
