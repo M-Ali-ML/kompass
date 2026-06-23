@@ -1,7 +1,7 @@
 "use client";
 
-import { CopilotKit } from "@copilotkit/react-core";
-import { HttpAgent } from "@ag-ui/client";
+import { CopilotKit } from "@copilotkit/react-core/v2";
+import { HttpAgent } from "@copilotkit/react-core/v2";
 
 const COPILOTKIT_ENDPOINT =
   process.env.NEXT_PUBLIC_COPILOTKIT_ENDPOINT || "http://localhost:8000/api/copilotkit";
