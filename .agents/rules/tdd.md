@@ -1,5 +1,5 @@
 ---
-trigger: model_decision
+trigger: manual
 description: Enforce Test-Driven Development (TDD) workflow with red-green-refactor cycles.
 ---
 

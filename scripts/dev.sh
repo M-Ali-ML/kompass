@@ -14,26 +14,39 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== Kompass Dev Environment Startup ===${NC}"
 
-# Check if ports are already in use
 port_in_use() {
     lsof -i :"$1" >/dev/null 2>&1
 }
 
+kill_port_owner() {
+    local port=$1
+    local pids
+    pids=$(lsof -t -i :"$port")
+    if [ -n "$pids" ]; then
+        echo -e "${YELLOW}Port $port is in use by PID(s): $pids. Killing...${NC}"
+        for pid in $pids; do
+            kill "$pid" 2>/dev/null
+        done
+        sleep 1
+        # If still in use, force kill
+        if port_in_use "$port"; then
+            echo -e "${RED}Port $port still in use. Force killing...${NC}"
+            for pid in $pids; do
+                kill -9 "$pid" 2>/dev/null
+            done
+            sleep 1
+        fi
+    fi
+}
+
 check_ports() {
-    local exit_needed=0
     if port_in_use 8000; then
-        echo -e "${RED}Error: Port 8000 (Backend) is already in use.${NC}"
-        lsof -i :8000
-        exit_needed=1
+        echo -e "${YELLOW}Port 8000 (Backend) is in use. Attempting to free it...${NC}"
+        kill_port_owner 8000
     fi
     if port_in_use 3000; then
-        echo -e "${RED}Error: Port 3000 (Frontend) is already in use.${NC}"
-        lsof -i :3000
-        exit_needed=1
-    fi
-    if [ $exit_needed -eq 1 ]; then
-        echo -e "${YELLOW}Please stop the conflicting processes and try again.${NC}"
-        exit 1
+        echo -e "${YELLOW}Port 3000 (Frontend) is in use. Attempting to free it...${NC}"
+        kill_port_owner 3000
     fi
 }
 

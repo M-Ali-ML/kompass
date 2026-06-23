@@ -90,15 +90,8 @@ export default function Home() {
             <Compass className="w-6 h-6 animate-spin-slow" />
           </div>
           <span className="text-xl font-extrabold tracking-tight text-foreground">
-            Kompass<span className="text-primary">.ai</span>
-            <span className="ml-2 text-[10px] font-semibold uppercase tracking-widest bg-pink-100 text-primary px-2.5 py-0.5 rounded-full">
-              Math MVP
-            </span>
+            Kompass
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-bold text-muted">Agent Online</span>
         </div>
       </header>
 

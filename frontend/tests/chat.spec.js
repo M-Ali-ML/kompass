@@ -5,7 +5,7 @@ test.describe('Kompass Math Agent E2E Tests', () => {
     await page.goto('/');
     
     // Check header title exists
-    await expect(page.locator('header')).toContainText('Kompass.ai');
+    await expect(page.locator('header')).toContainText('Kompass');
     
     // Check initial agent message is visible
     const firstAgentMessage = page.locator('[data-testid="message-agent"]').first();
