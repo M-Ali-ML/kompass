@@ -1,15 +1,15 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('Kompass Math Agent E2E Tests', () => {
-  test('should load the chat page and display the welcome message', async ({ page }) => {
+  test('should load the chat page and verify empty state', async ({ page }) => {
     await page.goto('/');
     
     // Check header title exists
     await expect(page.locator('header')).toContainText('Kompass');
     
-    // Check initial agent message is visible
-    const firstAgentMessage = page.locator('.copilotKitAssistantMessage').first();
-    await expect(firstAgentMessage).toContainText('Hello! I am the Kompass Math Agent');
+    // Check that there are no assistant messages loaded initially
+    const assistantMessages = page.locator('.copilotKitAssistantMessage');
+    await expect(assistantMessages).toHaveCount(0);
   });
 
   test('should accept user input and get a response from the agent calling the MCP tool', async ({ page }) => {
