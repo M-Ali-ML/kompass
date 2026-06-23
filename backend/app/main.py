@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router as api_router
-from app.adapters.mcp_math_service import mcp_service
 
 # Configure standard logging to show agent steps
 logging.basicConfig(level=logging.INFO)
@@ -12,11 +11,9 @@ logging.getLogger("kompass.agent").setLevel(logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Start the persistent MCP client
-    await mcp_service.start()
+    # Startup placeholder (MCP clients will be initialized here in later phases)
     yield
-    # Shutdown: Stop the persistent MCP client subprocess
-    await mcp_service.stop()
+    # Shutdown placeholder
 
 app = FastAPI(title="Kompass Backend API", lifespan=lifespan)
 
