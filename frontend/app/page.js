@@ -1,78 +1,81 @@
 "use client";
 
-import React, { useState } from "react";
-import ChatPane from "../components/ChatPane";
-import { Compass } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { Compass, Send, Bot, User } from "lucide-react";
 
 export default function Home() {
-  const [isGenerating, setIsGenerating] = useState(false);
-  
   const [messages, setMessages] = useState([
     {
+      id: "init",
       role: "agent",
-      content: "Hello! I am Kompass, your autonomous travel planner. Where would you like to go?"
+      content: "Hello! I am the Kompass Math Agent. How can I help you add numbers today?"
     }
   ]);
+  const [inputValue, setInputValue] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const messagesEndRef = useRef(null);
 
-  const handleSendMessage = async (text) => {
-    // 1. Add User Message
-    const newMsg = { role: "user", content: text };
-    setMessages((prev) => [...prev, newMsg]);
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isGenerating]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!inputValue.trim() || isGenerating) return;
+
+    const userMessageText = inputValue.trim();
+    setInputValue("");
+    
+    // Add user message
+    const userMsg = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: userMessageText
+    };
+    setMessages((prev) => [...prev, userMsg]);
     setIsGenerating(true);
 
-    // 2. Perform API Call to backend
     try {
-      const response = await fetch(process.env.NEXT_PUBLIC_COPILOTKIT_ENDPOINT || "http://localhost:8000/api/chat", {
+      const response = await fetch(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          session_id: "demo-session"
-        })
+        body: JSON.stringify({ message: userMessageText })
       });
 
       if (response.ok) {
         const data = await response.json();
-        const payload = data.response; // ScenarioMatrix
-        if (payload && payload.scenarios && payload.scenarios.length > 0) {
-          // Map backend Scenarios to frontend
-          const mapped = payload.scenarios.map((sc, idx) => ({
-            id: sc.scenario_id || `plan-${idx}`,
-            title: sc.title || `Plan ${idx + 1}`,
-            duration_days: sc.itinerary?.length || 5,
-            estimated_cost_usd: sc.grand_total_usd || 1500,
-            stress_score: sc.stress_score || 2,
-            highlights: sc.summary ? [sc.summary] : ["AI Generated travel itinerary"],
-            flights: sc.flights || [],
-            stays: sc.stays || [],
-            days: sc.itinerary?.map((day) => ({
-              day_number: day.day_number,
-              title: day.title || `Day ${day.day_number}`,
-              activities: day.activities?.map((act, actIdx) => ({
-                id: `act-${day.day_number}-${actIdx}`,
-                title: act.name || act.title,
-                description: act.description,
-                time: act.start_time || "10:00",
-                cost_usd: act.cost_usd || 0
-              }))
-            })) || []
-          }));
-
-          setMessages((prev) => [...prev, {
+        const agentMsg = {
+          id: `agent-${Date.now()}`,
+          role: "agent",
+          content: data.response || "No response received."
+        };
+        setMessages((prev) => [...prev, agentMsg]);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || `HTTP error! Status: ${response.status}`;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
             role: "agent",
-            content: `I've successfully generated scenarios based on your request: "${text}"`,
-            scenarios: mapped
-          }]);
-          return;
-        }
+            content: errorMsg
+          }
+        ]);
       }
-      throw new Error(`HTTP error! status: ${response.status}`);
     } catch (err) {
-      console.error("API Offline or request failed:", err);
-      setMessages((prev) => [...prev, {
-        role: "agent",
-        content: "Failed to connect to the Kompass backend. Please verify that the backend server is running."
-      }]);
+      console.error("Failed to fetch response:", err);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          role: "agent",
+          content: "Failed to connect to the backend server. Please make sure the backend is running."
+        }
+      ]);
     } finally {
       setIsGenerating(false);
     }
@@ -80,36 +83,89 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
-      {/* Minimal Header */}
+      {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 bg-surface border-b border-pink-100 pink-shadow shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-primary text-white rounded-2xl bouncy-hover pink-shadow">
-            <Compass className="w-6 h-6" />
+            <Compass className="w-6 h-6 animate-spin-slow" />
           </div>
-          <span className="text-xl font-bold tracking-tight text-foreground">
+          <span className="text-xl font-extrabold tracking-tight text-foreground">
             Kompass<span className="text-primary">.ai</span>
-            <span className="ml-2 text-xs font-semibold uppercase tracking-widest bg-pink-100 text-primary px-2 py-0.5 rounded-full">
-              Agent MVP
+            <span className="ml-2 text-[10px] font-semibold uppercase tracking-widest bg-pink-100 text-primary px-2.5 py-0.5 rounded-full">
+              Math MVP
             </span>
           </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-bold text-muted">Agent System Online</span>
+          <span className="text-xs font-bold text-muted">Agent Online</span>
         </div>
       </header>
 
-      {/* Main Workspace Frame - Simplified to only ChatPane */}
-      <div className="flex flex-1 overflow-hidden justify-center">
-        <div className="w-full max-w-4xl h-full border-x border-pink-100 bg-white">
-          <ChatPane 
-            messages={messages}
-            onSendMessage={handleSendMessage}
-            isGenerating={isGenerating}
+      {/* Messages Scroll Area */}
+      <div className="flex-1 overflow-y-auto p-6 max-w-4xl w-full mx-auto flex flex-col gap-4" id="messages-list">
+        {messages.map((msg) => {
+          const isUser = msg.role === "user";
+          return (
+            <div
+              key={msg.id}
+              data-testid={isUser ? "message-user" : "message-agent"}
+              className={`flex gap-3 max-w-[80%] ${isUser ? "self-end flex-row-reverse" : "self-start"}`}
+            >
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold ${
+                isUser ? "bg-primary pink-shadow" : "bg-secondary purple-shadow"
+              }`}>
+                {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+              </div>
+              <div className={`p-4 rounded-2xl text-sm leading-relaxed font-medium ${
+                isUser ? "bg-primary text-white pink-shadow" : "bg-surface text-foreground border border-pink-50 purple-shadow"
+              }`}>
+                {msg.content}
+              </div>
+            </div>
+          );
+        })}
+
+        {isGenerating && (
+          <div data-testid="loading-indicator" className="flex gap-3 max-w-[80%] self-start">
+            <div className="w-8 h-8 rounded-full bg-secondary purple-shadow flex items-center justify-center text-white shrink-0">
+              <Bot className="w-4 h-4" />
+            </div>
+            <div className="p-4 bg-surface border border-pink-50 rounded-2xl purple-shadow flex flex-col gap-2 min-w-[150px]">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+                <span className="text-[10px] font-extrabold text-primary uppercase tracking-wider">Agent is calculating...</span>
+              </div>
+              <div className="h-2 w-28 bg-pink-100/50 rounded shimmer" />
+              <div className="h-2 w-20 bg-pink-100/50 rounded shimmer" />
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input Area */}
+      <div className="p-4 bg-surface border-t border-pink-100 shrink-0">
+        <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex gap-2">
+          <input
+            id="message-input"
+            type="text"
+            placeholder="Type your question (e.g. What is 15 + 27?)..."
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            disabled={isGenerating}
+            className="flex-1 px-5 py-3 border-2 border-pink-100 rounded-full focus:outline-none focus:border-primary bg-background text-sm font-medium text-foreground placeholder:text-muted disabled:opacity-50"
           />
-        </div>
+          <button
+            id="send-button"
+            type="submit"
+            disabled={isGenerating || !inputValue.trim()}
+            className="p-3.5 bg-primary text-white rounded-full bouncy-hover pink-shadow disabled:opacity-50 transition-all flex items-center justify-center cursor-pointer"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </form>
       </div>
     </div>
   );
 }
-
