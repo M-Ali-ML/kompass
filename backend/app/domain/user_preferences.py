@@ -18,3 +18,20 @@ class UserPreferences(BaseModel):
         default_factory=list, 
         description="Vibe descriptors (e.g., ['adventure', 'foodie', 'relaxation', 'history'])."
     )
+
+    def merged_with(self, override: "UserPreferences") -> "UserPreferences":
+        """Return a new UserPreferences where non-default fields of ``override`` win.
+
+        Used to layer conversation-derived preferences on top of the stored
+        global profile baseline without wiping values the override omitted.
+        """
+        merged = self.model_copy(deep=True)
+        if override.direct_flights_only:
+            merged.direct_flights_only = True
+        if override.preferred_transit_modes:
+            merged.preferred_transit_modes = list(override.preferred_transit_modes)
+        if override.hotel_class:
+            merged.hotel_class = override.hotel_class
+        if override.vibe_tags:
+            merged.vibe_tags = list(override.vibe_tags)
+        return merged

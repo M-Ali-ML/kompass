@@ -1,11 +1,76 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { CopilotChat } from "@copilotkit/react-core/v2";
-import { useRenderTool } from "@copilotkit/react-core/v2";
+import { useRenderTool, useAgent } from "@copilotkit/react-core/v2";
 import { Compass, Loader2, CheckCircle2 } from "lucide-react";
 import { z } from "zod";
+import { TripSidebar } from "./trip-sidebar";
+
+const COPILOTKIT_ENDPOINT =
+  process.env.NEXT_PUBLIC_COPILOTKIT_ENDPOINT || "http://localhost:8000/api/copilotkit";
+const API_BASE = COPILOTKIT_ENDPOINT.replace(/\/api\/copilotkit\/?$/, "");
+
+const newThreadId = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `trip-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export default function Home() {
+  const { agent } = useAgent();
+  const [activeThreadId, setActiveThreadId] = useState(() => newThreadId());
+  const [reloadKey, setReloadKey] = useState(0);
+  const reloadTrips = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  // Keep the agent's thread id in sync with the active trip. This parent effect
+  // runs after CopilotChat's own mount effect (which would otherwise assign a
+  // random thread id), so the backend persists messages under the trip we show
+  // as active. We intentionally do NOT pass `threadId`/`key` to CopilotChat —
+  // remounting it triggers the cloud-thread `connectAgent` bootstrap which
+  // races with the messages we load on resume.
+  useEffect(() => {
+    // The agent instance is intentionally mutable shared state (CopilotChat
+    // mutates agent.threadId the same way internally).
+    // eslint-disable-next-line react-hooks/immutability
+    if (agent) agent.threadId = activeThreadId;
+  }, [agent, activeThreadId]);
+
+  // Refresh the trip list whenever an agent run finishes (new trip persisted,
+  // title derived, latest assistant turn stored).
+  useEffect(() => {
+    if (!agent) return;
+    const sub = agent.subscribe({
+      onRunFinalized: () => reloadTrips(),
+    });
+    return () => sub?.unsubscribe?.();
+  }, [agent, reloadTrips]);
+
+  const handleNewTrip = useCallback(() => {
+    agent?.setMessages([]);
+    setActiveThreadId(newThreadId());
+  }, [agent]);
+
+  const handleSelectTrip = useCallback(
+    async (tripId) => {
+      if (!agent || tripId === activeThreadId) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/trips/${tripId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const messages = (data.messages || []).map((m) => ({
+          id: String(m.id),
+          role: m.role,
+          content: m.content,
+        }));
+        agent.setMessages(messages);
+        setActiveThreadId(tripId);
+      } catch (err) {
+        console.error("Failed to resume trip", err);
+      }
+    },
+    [agent, activeThreadId]
+  );
+
   // Tool execution UI — renders inline cards for gather_preferences calls
   useRenderTool({
     name: "gather_preferences",
@@ -82,15 +147,26 @@ export default function Home() {
         </div>
       </header>
 
-      {/* V2 CopilotChat — native reasoning message support via AG-UI protocol */}
-      <div className="flex-1 overflow-hidden">
-        <CopilotChat
-          className="h-full"
-          labels={{
-            title: "Kompass Travel Assistant",
-            placeholder: "Where do you want to go?",
-          }}
+      <div className="flex flex-1 overflow-hidden">
+        <TripSidebar
+          activeThreadId={activeThreadId}
+          onNewTrip={handleNewTrip}
+          onSelectTrip={handleSelectTrip}
+          reloadKey={reloadKey}
         />
+
+        {/* V2 CopilotChat — native reasoning support via AG-UI protocol.
+            Messages are driven by the shared agent instance; resuming a trip
+            calls agent.setMessages(...) and the chat re-renders in place. */}
+        <div className="flex-1 overflow-hidden">
+          <CopilotChat
+            className="h-full"
+            labels={{
+              title: "Kompass Travel Assistant",
+              placeholder: "Where do you want to go?",
+            }}
+          />
+        </div>
       </div>
     </div>
   );

@@ -7,6 +7,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 current_dir = os.path.dirname(os.path.abspath(__file__))
 env_file_path = os.path.abspath(os.path.join(current_dir, "..", ".env"))
 
+# Default SQLite database location: backend/data/kompass.db (resolved absolutely).
+default_db_path = os.path.abspath(os.path.join(current_dir, "..", "data", "kompass.db"))
+default_database_url = f"sqlite+aiosqlite:///{default_db_path}"
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=env_file_path,
@@ -22,6 +26,9 @@ class Settings(BaseSettings):
     langfuse_public_key: Optional[str] = Field(None, alias="LANGFUSE_PUBLIC_KEY")
     langfuse_base_url: str = Field("https://cloud.langfuse.com", alias="LANGFUSE_BASE_URL")
     
+    # Persistence configuration
+    database_url: str = Field(default_database_url, alias="DATABASE_URL")
+
     # Server configuration
     port: int = Field(8000, alias="PORT")
     host: str = Field("127.0.0.1", alias="HOST")

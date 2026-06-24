@@ -20,15 +20,26 @@ kompass_agent = Agent(
 )
 
 @kompass_agent.tool
-def gather_preferences(ctx: RunContext[AgentDependencies], preferences: UserPreferences) -> str:
+async def gather_preferences(ctx: RunContext[AgentDependencies], preferences: UserPreferences) -> str:
     """Extract and register traveler preferences.
     
     Call this tool when the user specifies preferences like direct flights, vibe tags,
     hotel standards, or transport modes. Do not call this tool with empty parameters.
     """
-    ctx.deps.user_preferences = preferences
-    logger.info(f"Gathered user preferences: {preferences}")
-    return f"Successfully gathered user preferences: {preferences}"
+    # Layer the freshly stated preferences on top of the existing baseline
+    # (global profile + anything gathered earlier this conversation).
+    merged = ctx.deps.user_preferences.merged_with(preferences)
+    ctx.deps.user_preferences = merged
+    logger.info(f"Gathered user preferences: {merged}")
+
+    # Persist to the global profile so preferences carry across future trips.
+    if ctx.deps.profile_repository is not None:
+        try:
+            await ctx.deps.profile_repository.save_preferences(merged)
+        except Exception as e:
+            logger.error(f"Failed to persist user profile: {e}")
+
+    return f"Successfully gathered user preferences: {merged}"
 
 @kompass_agent.system_prompt(dynamic=True)
 def get_system_prompt(ctx: RunContext[AgentDependencies]) -> str:

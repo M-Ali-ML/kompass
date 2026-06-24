@@ -13,6 +13,8 @@ dependencies = [
     "uvicorn>=0.28.0",
     "ag-ui-protocol>=0.1.13",
     "pydantic-settings>=2.14.2",
+    "aiosqlite>=0.22.1",
+    "greenlet>=3.5.2",
 ]
 
 [dependency-groups]
