@@ -1,37 +1,38 @@
 # Kompass App: Design & Styling System (Post-Building)
 
-This document tracks the *actual* implemented design and styling of the Kompass application, contrasting it with target UI guidelines.
+This document tracks the *actual* implemented design and styling of the Kompass application as of Phase 2.
 
 ---
 
 ## 1. Current Design Status
 
-The application is currently in its scaffolded baseline state, utilizing the default styling provided by `create-next-app`.
+The application uses the custom **"Candy" Theme** (a bold, fun, energetic "Joyful Pop" aesthetic) with custom shadows and spring hover transitions.
 
-* **Styling Technology:** Tailwind CSS.
-* **Global Stylesheet:** [globals.css](file:///Users/aly/repos/kompass/frontend/app/globals.css) containing standard Tailwind utility layer imports.
-* **Base Layout:** [layout.js](file:///Users/aly/repos/kompass/frontend/app/layout.js) displaying a vertical layout.
-* **Typography:** Default browser sans-serif font family.
-* **Color Palette:** Grayscale (Zinc/Black theme).
+* **Styling Technology:** Tailwind CSS v4.
+* **Global Stylesheet:** [globals.css](file:///Users/aly/repos/kompass/frontend/app/globals.css) containing HSL color variables, bouncy transitions, and tinted shadows.
+* **Base Layout:** [layout.js](file:///Users/aly/repos/kompass/frontend/app/layout.js) showing a vertical viewport container with custom header.
+* **Typography:** DM Sans (Rounded, friendly, bold headings).
+* **Color Palette:** Warm Pink-White Background (`#fef7ff`), Hot Pink (`#e040a0`), Purple (`#7c52aa`), Sky Blue (`#0096cc`).
 
 ---
 
-## 2. Design System Gap Analysis
+## 2. Design System Matrix
 
-| Attribute | Currently Implemented | Target Blueprint ("Candy" Theme) | Status |
+| Attribute | Blueprint Target | Currently Implemented | Status |
 | :--- | :--- | :--- | :--- |
-| **Theme / Vibe** | Standard corporate minimalist | "Joyful Pop" (Bold, fun, energetic) | 🔴 Pending |
-| **Color Palette** | Zinc-50 / Black | Hot Pink (`#e040a0`), Purple (`#7c52aa`), Sky Blue (`#0096cc`), Warm Pink-White Background (`#fef7ff`) | 🔴 Pending |
-| **Typography** | Sans-Serif | DM Sans (Rounded, friendly, bold headings) | 🔴 Pending |
-| **Corner Radius** | Tailwind full/standard | Full/pill on buttons, 16px-20px on cards | 🔴 Pending |
-| **Animations** | Default transitions | Bouncy hover transitions (`scale(1.03)` spring effect) | 🔴 Pending |
-| **Shadows** | None / Default | Tinted shadows matching the element color at 15-20% opacity | 🔴 Pending |
+| **Theme / Vibe** | "Joyful Pop" | "Joyful Pop" | 🟢 Completed |
+| **Color Palette** | Hot Pink, Purple, Sky Blue | Primary `#e040a0`, Secondary `#7c52aa`, Accent `#0096cc` | 🟢 Completed |
+| **Typography** | DM Sans | DM Sans (imported via Google Fonts) | 🟢 Completed |
+| **Corner Radius** | 16px-20px cards, pill-shaped tags | 16px card panels, full rounded tags | 🟢 Completed |
+| **Animations** | Bouncy scale-up spring hover | `.bouncy-hover` scale transition | 🟢 Completed |
+| **Shadows** | Tinted color shadows | Pink, purple, and blue shadows at 20-35% opacity | 🟢 Completed |
 
 ---
 
 ## 3. UI Component Status
 
-* **Header/Branding:** Standard Vercel/Next logos. No custom "Joyful Pop" brand elements.
-* **Chat Window:** Not yet implemented. Needs custom inputs with pink focus rings and pill-shaped send buttons.
-* **Travel Scenarios Comparison Table:** Not yet implemented. Needs 16px white card panels with lift hover animations.
-* **Map Display:** Not yet implemented.
+* **Header/Branding:** Done. Displays a pink-shadowed primary button enclosing an animated spinning `Compass` icon, next to "Kompass" title.
+* **Chat Window:** Done. Integrated CopilotKit chat container with travel-specific titles and placeholders.
+* **Preference Badges Card:** Done. Customized `gather_preferences` tool renderer displaying colorful tags for direct flights, hotel class, transit modes, and vibe tags.
+* **Travel Scenarios Comparison Table:** Not yet implemented (Pending in Phase 5).
+* **Map Display:** Installed Leaflet, component not yet implemented (Pending in Phase 8).

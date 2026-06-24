@@ -92,3 +92,27 @@ async def test_agent_scenario_structured_response(agent_deps):
     assert result.output.itinerary.legs[0].origin == "BER"
     assert result.output.total_cost == 950.0
     assert result.output.stress_score == 1
+
+def test_gather_preferences_tool(agent_deps):
+    from app.agent.agent import gather_preferences
+    from pydantic_ai import RunContext
+    from app.domain import UserPreferences
+    
+    # We can invoke the tool directly using the function
+    ctx = RunContext(
+        deps=agent_deps,
+        model=MagicMock(),
+        usage=MagicMock(),
+        prompt="test prompt"
+    )
+    
+    prefs = UserPreferences(
+        direct_flights_only=True,
+        vibe_tags=["foodie", "relaxation"]
+    )
+    
+    res = gather_preferences(ctx, prefs)
+    assert "Successfully gathered user preferences" in res
+    assert agent_deps.user_preferences.direct_flights_only is True
+    assert "foodie" in agent_deps.user_preferences.vibe_tags
+

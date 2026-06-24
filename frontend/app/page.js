@@ -6,31 +6,63 @@ import { Compass, Loader2, CheckCircle2 } from "lucide-react";
 import { z } from "zod";
 
 export default function Home() {
-  // Tool execution UI — renders inline cards for calculate_sum calls
+  // Tool execution UI — renders inline cards for gather_preferences calls
   useRenderTool({
-    name: "calculate_sum",
+    name: "gather_preferences",
     parameters: z.object({
-      a: z.number().describe("The first number to add"),
-      b: z.number().describe("The second number to add"),
+      direct_flights_only: z.boolean().optional(),
+      preferred_transit_modes: z.array(z.string()).optional(),
+      hotel_class: z.string().nullable().optional(),
+      vibe_tags: z.array(z.string()).optional(),
     }),
-    render: ({ status, parameters, result }) => {
+    render: ({ status, parameters }) => {
       const isComplete = status === "complete";
-      const a = parameters?.a ?? "?";
-      const b = parameters?.b ?? "?";
+      const prefs = parameters;
 
-      if (isComplete) {
-        return (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/10 text-secondary border border-secondary/20 rounded-full text-xs font-medium w-fit my-1.5 bouncy-hover shadow-purple">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Added {a} + {b} = {result}</span>
-          </div>
-        );
-      }
+      if (!prefs) return null;
+
+      const hasPrefs = 
+        prefs.direct_flights_only ||
+        (prefs.preferred_transit_modes && prefs.preferred_transit_modes.length > 0) ||
+        prefs.hotel_class ||
+        (prefs.vibe_tags && prefs.vibe_tags.length > 0);
+
+      if (!hasPrefs) return null;
 
       return (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-xs font-medium w-fit my-1.5 bouncy-hover animate-pulse shadow-bouncy">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          <span>Adding {a} + {b}...</span>
+        <div className={`p-4 my-2.5 rounded-2xl bg-surface border border-pink-100 bouncy-hover pink-shadow max-w-md ${!isComplete ? 'animate-pulse' : ''}`}>
+          <div className="flex items-center gap-2 mb-2">
+            {isComplete ? (
+              <CheckCircle2 className="w-4 h-4 text-primary" />
+            ) : (
+              <Loader2 className="w-4 h-4 text-primary animate-spin" />
+            )}
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">
+              {isComplete ? "Preferences Extracted" : "Extracting Preferences..."}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {prefs.direct_flights_only && (
+              <span className="px-2.5 py-1 bg-pink-50 text-pink-700 border border-pink-100 rounded-full text-xs font-semibold">
+                ✈️ Direct Flights Only
+              </span>
+            )}
+            {prefs.hotel_class && (
+              <span className="px-2.5 py-1 bg-purple-50 text-purple-800 border border-purple-100 rounded-full text-xs font-semibold">
+                🏨 {prefs.hotel_class}
+              </span>
+            )}
+            {prefs.preferred_transit_modes?.map((mode) => (
+              <span key={mode} className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-full text-xs font-semibold capitalize">
+                {mode === "flight" ? "✈️" : mode === "train" ? "🚆" : mode === "bus" ? "🚌" : mode === "ferry" ? "🚢" : "🚗"} {mode}
+              </span>
+            ))}
+            {prefs.vibe_tags?.map((vibe) => (
+              <span key={vibe} className="px-2.5 py-1 bg-yellow-50 text-amber-800 border border-yellow-100 rounded-full text-xs font-semibold">
+                ✨ {vibe}
+              </span>
+            ))}
+          </div>
         </div>
       );
     },
@@ -55,11 +87,12 @@ export default function Home() {
         <CopilotChat
           className="h-full"
           labels={{
-            title: "Kompass Math Agent",
-            placeholder: "Type your question (e.g. What is 15 + 27?)...",
+            title: "Kompass Travel Assistant",
+            placeholder: "Where do you want to go?",
           }}
         />
       </div>
     </div>
   );
+
 }

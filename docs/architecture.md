@@ -1,19 +1,19 @@
 # Kompass App: System Architecture (Post-Building)
 
-This document details the *implemented* system architecture of the Kompass travel planning application.
+This document details the *implemented* system architecture of the Kompass travel planning application as of Phase 2.
 
 ---
 
 ## 1. Architectural Overview
-The system consists of a Python FastAPI backend and a Next.js frontend, utilizing an SQLite database for persistence.
+The system consists of a Python FastAPI backend and a Next.js frontend, integrated using the AG-UI protocol and CopilotKit.
 
 ```
        +---------------------------------------+
        |           Next.js Frontend            |
-       |  (Boilerplate NextJS; no CopilotKit/  |
-       |     AGUI integrated in UI yet)        |
+       |  (CopilotKit Chat + gather_pref card  |
+       |         + Tailwind CSS v4)            |
        +-------------------+-------------------+
-                           | HTTP / JSON
+                           | SSE Streaming (AG-UI Protocol)
                            v
        +-------------------+-------------------+
        |            FastAPI Web App            |
@@ -24,61 +24,50 @@ The system consists of a Python FastAPI backend and a Next.js frontend, utilizin
        +-------------------+-------------------+
        |            PydanticAI Agent           |
        |      (backend/app/agent/agent.py)     |
-       +-------+--------------+-------------+--+
-               |              |             |
-               v (Port)       v (Port)      v (Port)
-       +---------------+ +------------+ +------------+
-       |   Repository  | |   Flights  | |    Stays   |
-       +---------------+ +------------+ +------------+
-               |              |             |
-               v (Adapter)    v (Adapter)   v (Adapter)
-       +---------------+ +------------+ +------------+
-       | SQLite DB     | | Mock       | | Mock       |
-       | (data/        | | Service    | | Service    |
-       | kompass.db)   | |            | |            |
-       +---------------+ +------------+ +------------+
+       +-------------------+-------------------+
+                           |
+                           v
+       +-------------------+-------------------+
+       |          Prompt Service Port          |
+       |   (app/ports/prompt_service.py)       |
+       +-------------------+-------------------+
+                           |
+                           v
+       +-------------------+-------------------+
+       |       File Prompt Service Adapter     |
+       | (app/adapters/file_prompt_service.py) |
+       +---------------------------------------+
 ```
 
 ---
 
 ## 2. Backend Layer (Hexagonal Architecture)
-The backend strictly follows a **Hexagonal Architecture (Ports & Adapters)** pattern to separate the core business logic (agent & models) from infrastructure details (SQLite database & API mocks).
+The backend follows a **Hexagonal Architecture (Ports & Adapters)** pattern to separate the core business logic (agent & models) from infrastructure details (file prompt loading).
 
 ### A. Core Domain Models
-Located in [models.py](file:///Users/aly/repos/kompass/backend/app/domain/models.py):
-* `FlightDetail`: Details about specific flight offers.
-* `StayDetail`: Details about accommodation offers.
-* `ActivityDetail`: Individual daily activities.
-* `ItineraryDay`: Bundles a list of activities for a single day.
-* `ItineraryScenario`: Represents a single structured travel plan comparison variant (subtotals, totals, stress score, flights, stays, itinerary).
-* `ScenarioMatrix`: A list of generated scenarios and active constraints returned by the agent.
-* `UserPreferenceProfile`: Holds a user's preferences, budget thresholds, and other global constraints.
+Located in `backend/app/domain/`:
+* [trip.py](file:///Users/aly/repos/kompass/backend/app/domain/trip.py) — `TripRequest` model (destination, dates, duration, budget, etc.).
+* [user_preferences.py](file:///Users/aly/repos/kompass/backend/app/domain/user_preferences.py) — `UserPreferences` model (direct flights only, preferred transit modes, hotel standard, vibe tags).
+* [itinerary.py](file:///Users/aly/repos/kompass/backend/app/domain/itinerary.py) — `Itinerary` model wrapping travel legs, accommodations, and day-by-day summaries.
+* [scenario.py](file:///Users/aly/repos/kompass/backend/app/domain/scenario.py) — `Scenario` model (wraps an itinerary, estimated costs, and stress score).
 
 ### B. Ports (Interfaces)
 Located in `backend/app/ports/`:
-* [repository.py](file:///Users/aly/repos/kompass/backend/app/ports/repository.py): `TripRepositoryPort` defining profiles, scenario matrices, and message persistence.
-* [flight_service.py](file:///Users/aly/repos/kompass/backend/app/ports/flight_service.py): `FlightServicePort` defining flight searching.
-* [stay_service.py](file:///Users/aly/repos/kompass/backend/app/ports/stay_service.py): `StayServicePort` defining stay searching.
-* [search_service.py](file:///Users/aly/repos/kompass/backend/app/ports/search_service.py): `SearchServicePort` defining generic web search capabilities.
+* [prompt_service.py](file:///Users/aly/repos/kompass/backend/app/ports/prompt_service.py) — `PromptServicePort` defining method to load prompt templates.
 
 ### C. Adapters (Implementations)
 Located in `backend/app/adapters/`:
-* [db_sqlite.py](file:///Users/aly/repos/kompass/backend/app/adapters/db_sqlite.py): `SQLiteTripRepository` - stores data locally in the `backend/data/kompass.db` file.
-* [fli_flights.py](file:///Users/aly/repos/kompass/backend/app/adapters/fli_flights.py): `FliFlightService` - simulates network delays and returns randomized mock flight data.
-* [openbnb_stays.py](file:///Users/aly/repos/kompass/backend/app/adapters/openbnb_stays.py): `AirbnbStayService` - simulates network delays and returns randomized mock stay data.
-* [search_brave.py](file:///Users/aly/repos/kompass/backend/app/adapters/search_brave.py): `BraveSearchService` - simulates web search returns.
+* [file_prompt_service.py](file:///Users/aly/repos/kompass/backend/app/adapters/file_prompt_service.py) — `FilePromptService` which loads system prompt templates from local markdown files.
 
 ---
 
 ## 3. PydanticAI Agent Layer
 The agent framework is managed via PydanticAI.
 
-* **Agent Definition:** [agent.py](file:///Users/aly/repos/kompass/backend/app/agent/agent.py) instantiates `kompass_agent` using model `'google:gemini-3.5-flash'` with structured output enforcement for `ScenarioMatrix`.
+* **Agent Definition:** [agent.py](file:///Users/aly/repos/kompass/backend/app/agent/agent.py) instantiates `kompass_agent` using model settings from config and structured output union `Union[str, Scenario]`.
 * **Agent Tools:**
-  * `check_flights`: Calls the flight service adapter.
-  * `check_stays`: Calls the stays service adapter.
-  * `web_search`: Calls the brave search service adapter.
-* **Dependency Injection:** [dependency.py](file:///Users/aly/repos/kompass/backend/app/agent/dependency.py) defines `AgentDependencies` dataclass and the `get_agent_dependencies(session_id)` helper function.
+  * `gather_preferences`: Registered on the agent to extract and save traveler preferences (vibe, hotel class, direct flight requirement, and preferred transit modes) into the agent's run context dependencies.
+* **Dependency Injection:** [dependency.py](file:///Users/aly/repos/kompass/backend/app/agent/dependency.py) defines `AgentDependencies` dataclass enclosing `prompt_service` and `user_preferences`.
 
 ---
 
@@ -86,11 +75,10 @@ The agent framework is managed via PydanticAI.
 * **FastAPI Entrypoint:** [main.py](file:///Users/aly/repos/kompass/backend/app/main.py) running on FastAPI.
 * **Endpoints:**
   * `GET /health`: Health-check endpoint.
-  * `POST /api/chat`: Accepts user prompt and `session_id`, loads user profile and dependencies, appends message to the SQLite database, runs the `kompass_agent` to generate a `ScenarioMatrix`, saves the results in SQLite, and returns a JSON response.
+  * `POST /api/copilotkit`: [routes.py](file:///Users/aly/repos/kompass/backend/app/api/routes.py) - Reconstructs the traveler's active `UserPreferences` from the message history and dispatches the PydanticAI run to CopilotKit/AG-UI stream.
 
 ---
 
 ## 5. Frontend Layer
-* **Structure:** Next.js application located in `/Users/aly/repos/kompass/frontend`.
-* **Implementation Status:** Standard Next.js boilerplate from `create-next-app` using Tailwind CSS. 
-* *Note:* CopilotKit, AGUI Protocol streams, Map rendering, and Candy theme components are not yet integrated into the UI code.
+* **Structure:** Next.js application located in `frontend/`.
+* **Implementation Status:** Uses CopilotKit React SDK v2 for chat interface and streams reasoning/tool events. Implements the custom `gather_preferences` Generative UI visual card rendering and dynamic chat labels.
