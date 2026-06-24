@@ -1,3 +1,8 @@
+---
+name: session-logging
+description: Maintain daily session logs and context handoffs in the sessions/ directory. Run this skill at the end of every session/turn, after completing major implementation steps, or when resolving bugs to document completed tasks, active bugs, and next steps for the next agent.
+---
+
 # Skill: Daily Session Logging & Context Handoff
 
 ## Purpose

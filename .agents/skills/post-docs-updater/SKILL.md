@@ -1,3 +1,8 @@
+---
+name: post-docs-updater
+description: Update post-building documentation in the docs/ directory (such as architecture, design, and product files). Run this skill whenever you make structural, architectural, database, or UI/styling changes, or finish a feature to keep the living documentation in sync with the codebase.
+---
+
 # Skill: Maintaining Post-Building Documentation (Post-Docs)
 
 ## Purpose
