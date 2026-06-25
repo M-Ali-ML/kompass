@@ -7,6 +7,7 @@ directly, keeping the persistence wiring centralized here.
 import logging
 import os
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -62,4 +63,18 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_apply_lightweight_migrations)
     logger.info("Database schema initialized at %s", settings.database_url)
+
+
+def _apply_lightweight_migrations(conn) -> None:
+    """Add columns introduced after a table was first created.
+
+    `create_all` only creates missing tables, never new columns on existing
+    ones, so additive columns need an idempotent ALTER. SQLite supports
+    `ADD COLUMN`; we guard on PRAGMA table_info to stay a no-op once applied.
+    """
+    cols = {row[1] for row in conn.execute(text("PRAGMA table_info(trips)"))}
+    if cols and "message_history" not in cols:
+        logger.info("Migrating: adding trips.message_history column")
+        conn.execute(text("ALTER TABLE trips ADD COLUMN message_history JSON"))

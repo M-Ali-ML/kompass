@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAgent } from "@copilotkit/react-core/v2";
-import { getTrip } from "../lib/trips-api";
+import { getTrip, saveTripMessages } from "../lib/trips-api";
 
 const newThreadId = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -28,12 +28,24 @@ export function useActiveTrip() {
     if (agent) agent.threadId = activeThreadId;
   }, [agent, activeThreadId]);
 
-  // Refresh the trip list whenever an agent run finishes (new trip persisted,
-  // title derived, latest assistant turn stored).
+  // When a run finishes, persist the full AG-UI message history (text turns plus
+  // tool calls and their results) so the generative-UI cards rehydrate on
+  // reload, then refresh the trip list (new trip persisted, title derived).
   useEffect(() => {
     if (!agent) return;
     const sub = agent.subscribe({
-      onRunFinalized: () => reloadTrips(),
+      onRunFinalized: async () => {
+        try {
+          const tripId = agent.threadId;
+          const messages = agent.messages || [];
+          if (tripId && messages.length > 0) {
+            await saveTripMessages(tripId, messages);
+          }
+        } catch (err) {
+          console.error("Failed to persist trip messages", err);
+        }
+        reloadTrips();
+      },
     });
     return () => sub?.unsubscribe?.();
   }, [agent, reloadTrips]);

@@ -1,7 +1,7 @@
 """ORM models for persisted trip conversations and their messages."""
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -27,6 +27,12 @@ class Trip(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
+
+    # Full AG-UI/CopilotKit message history (user/assistant/tool turns including
+    # tool calls and their results) serialized as JSON. This is what lets the
+    # generative-UI cards (scenario comparisons, flight lists, etc.) rehydrate on
+    # reload — the flattened `messages` rows below only carry plain text turns.
+    message_history: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     messages: Mapped[list["Message"]] = relationship(
         back_populates="trip",

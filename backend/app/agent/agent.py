@@ -136,6 +136,8 @@ async def search_flights(
 
     Use this once dates are known to attach real prices, times, and layover
     counts to an itinerary leg. Prices reflect the traveler's preferred currency.
+    Each call returns ONE direction — for a round trip, call it twice (once for
+    the outbound date, once for the return date) and add a Leg for each.
 
     Args:
         origin: Departure airport IATA code (e.g. 'BER').
@@ -234,6 +236,32 @@ async def generate_scenarios(
             ),
             "scenarios": [],
         }
+
+    # Enforce a full day-by-day plan: each scenario should carry one DaySummary
+    # per trip day. The model tends to collapse long trips into a couple of
+    # "highlight" days, so reject (at most once per run, to avoid a loop) with a
+    # corrective message when the day count is materially short of the trip span.
+    if ctx.deps.day_validation_retries < 1:
+        short = []
+        for s in scenarios:
+            nights = (s.end_date - s.start_date).days
+            have = len(s.itinerary.days)
+            if nights >= 3 and have < nights:
+                short.append((s.comparison_label or s.label, have, nights))
+        if short:
+            ctx.deps.day_validation_retries += 1
+            detail = "; ".join(f"'{label}' has only {have}/{n} days" for label, have, n in short)
+            logger.warning(f"generate_scenarios rejected — incomplete day plans: {detail}")
+            return {
+                "error": (
+                    "Each scenario needs one DaySummary for EVERY day of the trip "
+                    f"(start_date through end_date). Incomplete: {detail}. Re-call "
+                    "generate_scenarios ONCE with a complete day-by-day plan for "
+                    "every scenario — emit an entry for each day_number from 1 to the "
+                    "trip length. Do NOT summarize into a few representative days."
+                ),
+                "scenarios": [],
+            }
 
     currency = ctx.deps.user_preferences.currency
     # Keep the displayed math self-consistent: the grand total is always the

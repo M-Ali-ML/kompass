@@ -177,6 +177,8 @@ async def test_generate_scenarios_normalizes_totals_and_payload(agent_deps):
     from app.domain import UserPreferences
 
     agent_deps.user_preferences = UserPreferences(currency="USD")
+    # Isolate normalization from the day-completeness guard (covered separately).
+    agent_deps.day_validation_retries = 1
     ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
 
     scenarios = [
@@ -213,4 +215,31 @@ async def test_generate_scenarios_rejects_single_scenario(agent_deps):
     assert payload["scenarios"] == []
     assert "error" in payload
     assert "2-3" in payload["error"]
+
+
+@pytest.mark.asyncio
+async def test_generate_scenarios_rejects_incomplete_day_plan(agent_deps):
+    from app.agent.agent import generate_scenarios
+    from pydantic_ai import RunContext
+
+    ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
+
+    # Two valid scenarios but each spans a 7-night trip with no day-by-day plan.
+    scenarios = [
+        _make_scenario("Early September", 340.0, 900.0, 1240.0),
+        _make_scenario("Late August", 480.0, 1200.0, 1680.0),
+    ]
+
+    payload = await generate_scenarios(ctx, "Santorini", scenarios)
+
+    # The incomplete plan is rejected once with a corrective message...
+    assert payload["scenarios"] == []
+    assert "error" in payload
+    assert "day" in payload["error"].lower()
+    assert agent_deps.day_validation_retries == 1
+
+    # ...but the guard only fires once per run, so a retry proceeds (and renders),
+    # preventing an infinite correction loop even if the model can't comply.
+    payload2 = await generate_scenarios(ctx, "Santorini", scenarios)
+    assert len(payload2["scenarios"]) == 2
 

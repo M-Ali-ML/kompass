@@ -22,6 +22,9 @@ class AgentDependencies:
     profile_repository: UserProfileRepository | None = None
     flight_service: FlightServicePort | None = None
     trip_id: str | None = None
+    # Bounds how many times generate_scenarios may reject for an incomplete
+    # day-by-day plan within a single run, so enforcement can't loop forever.
+    day_validation_retries: int = 0
 
 
 def get_agent_dependencies(

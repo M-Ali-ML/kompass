@@ -14,11 +14,28 @@ export async function getTrip(tripId) {
   const res = await fetch(`${API_BASE}/api/trips/${tripId}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
+
+  // Prefer the full AG-UI history (includes tool calls + results) so generative
+  // UI cards rehydrate on resume; fall back to plain-text turns for old trips.
+  if (Array.isArray(data.message_history) && data.message_history.length > 0) {
+    return data.message_history;
+  }
   return (data.messages || []).map((m) => ({
     id: String(m.id),
     role: m.role,
     content: m.content,
   }));
+}
+
+// Persist the full AG-UI message history so generative-UI cards survive a reload.
+export async function saveTripMessages(tripId, messages, title) {
+  const res = await fetch(`${API_BASE}/api/trips/${tripId}/messages`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, title: title ?? null }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
 export async function deleteTrip(tripId) {

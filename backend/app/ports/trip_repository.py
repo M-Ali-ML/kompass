@@ -38,5 +38,21 @@ class TripRepository(ABC):
         """
 
     @abstractmethod
+    async def save_message_history(
+        self, trip_id: str, messages: list[dict], title: str | None = None
+    ) -> None:
+        """Store the full AG-UI message history (JSON) for a trip.
+
+        The list preserves the complete conversation shape — text turns plus
+        tool calls and their results — so the frontend can rehydrate generative
+        UI cards on reload. Upserts the trip if it does not exist and sets the
+        title when one is provided and the trip still has the default.
+        """
+
+    @abstractmethod
+    async def get_message_history(self, trip_id: str) -> list[dict]:
+        """Return the stored AG-UI message history for a trip (empty if none)."""
+
+    @abstractmethod
     async def delete_trip(self, trip_id: str) -> None:
         """Delete a trip and its messages. No-op if the trip does not exist."""

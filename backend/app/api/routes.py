@@ -72,6 +72,15 @@ def _derive_title(ag_messages) -> str:
     return "New Trip"
 
 
+def _title_from_messages(messages: list[dict]) -> str:
+    """Derive a trip title from the first user turn of an AG-UI message list."""
+    for m in messages:
+        if m.get("role") == "user" and isinstance(m.get("content"), str) and m["content"].strip():
+            text = m["content"].strip().replace("\n", " ")
+            return text[:60] + ("…" if len(text) > 60 else "")
+    return "New Trip"
+
+
 def extract_display_messages(model_messages) -> list[dict]:
     """Flatten PydanticAI message history into user/assistant text turns."""
     out: list[dict] = []
@@ -207,11 +216,29 @@ async def get_trip(trip_id: str):
         raise HTTPException(status_code=404, detail="Trip not found")
     return {
         **_serialize_trip(trip),
+        # Plain-text turns (legacy / fallback).
         "messages": [
             {"id": m.id, "role": m.role, "content": m.content}
             for m in trip.messages
         ],
+        # Full AG-UI history (incl. tool calls + results) so the frontend can
+        # rehydrate generative-UI cards on resume.
+        "message_history": trip.message_history or [],
     }
+
+
+class SaveMessagesRequest(BaseModel):
+    messages: list[dict]
+    title: str | None = None
+
+
+@router.put("/api/trips/{trip_id}/messages")
+async def save_trip_messages(trip_id: str, payload: SaveMessagesRequest):
+    """Persist the full AG-UI message history for a trip (called by the client
+    after each run so generative-UI cards survive a reload)."""
+    title = payload.title or _title_from_messages(payload.messages)
+    await _trip_repository().save_message_history(trip_id, payload.messages, title=title)
+    return {"status": "ok", "id": trip_id, "count": len(payload.messages)}
 
 
 @router.delete("/api/trips/{trip_id}")

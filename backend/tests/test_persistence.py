@@ -66,6 +66,48 @@ async def test_trip_lifecycle_and_message_sync(session_factory):
 
 
 @pytest.mark.asyncio
+async def test_message_history_round_trip_preserves_tool_calls(session_factory):
+    repo = SqliteTripRepository(session_factory)
+
+    # Full AG-UI shape: a user turn, an assistant tool call, and its result.
+    history = [
+        {"id": "m1", "role": "user", "content": "Plan a trip to Egypt"},
+        {
+            "id": "m2",
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+                {
+                    "id": "tc1",
+                    "type": "function",
+                    "function": {"name": "generate_scenarios", "arguments": "{}"},
+                }
+            ],
+        },
+        {"id": "m3", "role": "tool", "content": '{"scenarios": []}', "toolCallId": "tc1"},
+    ]
+
+    # Persisting a history upserts the trip and derives a title.
+    await repo.save_message_history("thread-egypt", history, title="Plan a trip to Egypt")
+
+    loaded = await repo.get_message_history("thread-egypt")
+    assert loaded == history  # tool calls + results survive the round-trip
+
+    trip = await repo.get_trip("thread-egypt")
+    assert trip is not None
+    assert trip.title == "Plan a trip to Egypt"
+
+    # Saving again fully replaces the stored history.
+    await repo.save_message_history(
+        "thread-egypt", [{"id": "m4", "role": "user", "content": "Actually, Greece"}]
+    )
+    assert len(await repo.get_message_history("thread-egypt")) == 1
+
+    # Unknown trip has an empty history rather than erroring.
+    assert await repo.get_message_history("nope") == []
+
+
+@pytest.mark.asyncio
 async def test_profile_persistence_and_merge(session_factory):
     repo = SqliteUserProfileRepository(session_factory)
 

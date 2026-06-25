@@ -18,9 +18,10 @@ import {
   Heart,
   Check,
   Trash2,
+  ExternalLink,
 } from "lucide-react";
 import { z } from "zod";
-import { formatPrice, parseResult } from "../../lib/format";
+import { formatPrice, parseResult, googleFlightsUrl } from "../../lib/format";
 import { saveScenario, deleteSavedScenario } from "../../lib/trips-api";
 
 export const scenarioComparisonParameters = z.object({
@@ -86,6 +87,46 @@ const layoverMinutes = (a, b) => {
   return Number.isFinite(d) && d > 0 ? Math.round(d) : 0;
 };
 
+// A gap longer than this between two legs is the trip stay itself (e.g. the
+// nights spent at the destination between the outbound and return flights), not
+// a connecting-flight layover. Used to avoid mislabeling a 14-day stay as a
+// "338h layover" and to split legs into outbound/return journeys.
+const TRIP_GAP_MINUTES = 24 * 60;
+
+// Split legs into journeys (outbound, return, ...) at trip-length gaps.
+const splitJourneys = (legs) => {
+  const journeys = [];
+  let current = [];
+  legs.forEach((leg, i) => {
+    current.push(leg);
+    const next = legs[i + 1];
+    if (next && layoverMinutes(leg, next) > TRIP_GAP_MINUTES) {
+      journeys.push(current);
+      current = [];
+    }
+  });
+  if (current.length) journeys.push(current);
+  return journeys;
+};
+
+// Door-to-door minutes for one journey (first departure → last arrival,
+// including any in-journey connection layovers).
+const journeyMinutes = (journey) => {
+  if (!journey || journey.length === 0) return 0;
+  const d =
+    (new Date(journey[journey.length - 1].arrival_time) - new Date(journey[0].departure_time)) /
+    60000;
+  return Number.isFinite(d) && d > 0 ? Math.round(d) : 0;
+};
+
+// Drop placeholder carriers (e.g. "TBD", "Flight (Direct)") so we only show a
+// real airline name.
+const cleanCarrier = (carrier) => {
+  const t = String(carrier || "").trim();
+  if (!t || /^tbd$/i.test(t) || /^flight\b/i.test(t)) return "";
+  return t;
+};
+
 const nightsBetween = (checkIn, checkOut) => {
   const d = (new Date(checkOut) - new Date(checkIn)) / 86400000;
   return Number.isFinite(d) && d >= 1 ? Math.round(d) : null;
@@ -107,6 +148,20 @@ function StressGauge({ score }) {
         />
       ))}
     </div>
+  );
+}
+
+// Icon for a transit leg. Flights use a downward-tilted plane (descending) that
+// reads better in the vertical timeline than the upward emoji; other modes keep
+// their glyph.
+function LegIcon({ mode, className = "" }) {
+  if (mode === "flight") {
+    return <Plane className={`w-4 h-4 text-primary rotate-90 ${className}`} />;
+  }
+  return (
+    <span className={`text-base leading-none ${className}`}>
+      {MODE_GLYPH[mode] || MODE_GLYPH.other}
+    </span>
   );
 }
 
@@ -168,7 +223,7 @@ function DayRow({ day, defaultOpen }) {
             <ol className="flex flex-col gap-3">
               {schedule.map((item, i) => (
                 <li key={i} className="flex gap-3">
-                  <span className="shrink-0 mt-0.5 w-16 text-[11px] font-bold uppercase tracking-wide text-secondary">
+                  <span className="shrink-0 mt-0.5 w-16 break-words text-[11px] font-bold uppercase tracking-wide text-secondary">
                     {item.period}
                   </span>
                   <div className="flex-1 min-w-0">
@@ -265,6 +320,12 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
   const total = cb.grand_total || 0;
   const nights = tripNights(scenario.start_date, scenario.end_date);
 
+  // Split the legs into outbound/return journeys so travel time reflects BOTH
+  // directions rather than a single conflated number.
+  const journeys = splitJourneys(legs);
+  const outboundMin = journeyMinutes(journeys[0]);
+  const returnMin = journeys.length > 1 ? journeyMinutes(journeys[journeys.length - 1]) : 0;
+
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm" onClick={onClose} />
@@ -350,7 +411,26 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
               <StatTile
                 icon={Clock}
                 label="Travel time"
-                value={sf.total_travel_hours != null ? `${sf.total_travel_hours}h` : "—"}
+                value={
+                  outboundMin && returnMin ? (
+                    <span className="flex flex-col leading-tight">
+                      <span>
+                        {fmtDuration(outboundMin)}{" "}
+                        <span className="text-[11px] font-semibold text-foreground/55">out</span>
+                      </span>
+                      <span>
+                        {fmtDuration(returnMin)}{" "}
+                        <span className="text-[11px] font-semibold text-foreground/55">back</span>
+                      </span>
+                    </span>
+                  ) : outboundMin ? (
+                    fmtDuration(outboundMin)
+                  ) : sf.total_travel_hours != null ? (
+                    `${sf.total_travel_hours}h`
+                  ) : (
+                    "—"
+                  )
+                }
               />
             </div>
           </section>
@@ -363,19 +443,37 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
                 {legs.map((leg, i) => {
                   const mins = legMinutes(leg);
                   const layover = i < legs.length - 1 ? layoverMinutes(leg, legs[i + 1]) : 0;
+                  const flightHref =
+                    leg.mode === "flight"
+                      ? leg.booking_link ||
+                        googleFlightsUrl(leg.origin, leg.destination, leg.departure_time)
+                      : null;
+                  const carrier = cleanCarrier(leg.carrier);
+                  const isStay = layover > TRIP_GAP_MINUTES;
                   return (
                     <li key={i} className="flex gap-3">
                       <div className="flex flex-col items-center">
-                        <span className="text-base leading-none mt-0.5">
-                          {MODE_GLYPH[leg.mode] || MODE_GLYPH.other}
-                        </span>
+                        <LegIcon mode={leg.mode} className="mt-0.5" />
                         {i < legs.length - 1 && <span className="flex-1 w-px bg-pink-200 my-1" />}
                       </div>
                       <div className="flex-1 pb-3">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-bold text-foreground">
-                            {leg.origin} → {leg.destination}
-                          </span>
+                          {flightHref ? (
+                            <a
+                              href={flightHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="View this flight on Google Flights"
+                              className="group inline-flex items-center gap-1 text-sm font-bold text-foreground hover:text-primary"
+                            >
+                              {leg.origin} → {leg.destination}
+                              <ExternalLink className="w-3 h-3 text-secondary opacity-60 group-hover:opacity-100" />
+                            </a>
+                          ) : (
+                            <span className="text-sm font-bold text-foreground">
+                              {leg.origin} → {leg.destination}
+                            </span>
+                          )}
                           <span className="text-xs font-semibold text-foreground/70">
                             {formatPrice(leg.cost, currency)}
                           </span>
@@ -384,11 +482,22 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
                           {fmtTime(leg.departure_time)}
                           {fmtTime(leg.arrival_time) ? ` – ${fmtTime(leg.arrival_time)}` : ""}
                           {mins ? ` · ${fmtDuration(mins)}` : ""}
-                          {leg.carrier ? ` · ${leg.carrier}` : ""}
                         </div>
-                        {layover > 0 && (
+                        {carrier && (
+                          <div className="flex items-center gap-1 text-xs font-medium text-foreground/80 mt-0.5">
+                            <Plane className="w-3 h-3 text-secondary" /> {carrier}
+                          </div>
+                        )}
+                        {/* Short gap = connecting layover; long gap = the trip stay. */}
+                        {layover > 0 && !isStay && (
                           <div className="mt-1.5 inline-block px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-medium">
                             {fmtDuration(layover)} layover in {leg.destination}
+                          </div>
+                        )}
+                        {isStay && (
+                          <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary/10 text-secondary border border-secondary/20 text-[11px] font-medium">
+                            <BedDouble className="w-3 h-3" /> {Math.round(layover / 1440)} nights in{" "}
+                            {leg.destination}
                           </div>
                         )}
                       </div>
@@ -599,7 +708,7 @@ function ScenarioCard({ scenario, currency, destination, bestValue, lowestStress
             {legs.map((leg, i) => (
               <span key={i} className="flex items-center gap-1.5">
                 {i > 0 && <span className="text-foreground/40">→</span>}
-                <span>{MODE_GLYPH[leg.mode] || MODE_GLYPH.other}</span>
+                <LegIcon mode={leg.mode} />
                 <span className="font-semibold">{leg.origin}</span>
                 {fmtTime(leg.departure_time) && (
                   <span className="text-foreground/70">{fmtTime(leg.departure_time)}</span>

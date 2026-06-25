@@ -85,6 +85,31 @@ class SqliteTripRepository(TripRepository):
             await session.commit()
             logger.info("Synced %d messages for trip %s", len(messages), trip_id)
 
+    async def save_message_history(
+        self, trip_id: str, messages: list[dict], title: str | None = None
+    ) -> None:
+        async with self._session_factory() as session:
+            trip = await session.get(Trip, trip_id)
+            if trip is None:
+                trip = Trip(id=trip_id, title=title or "New Trip")
+                session.add(trip)
+            elif title and trip.title in (None, "", "New Trip"):
+                trip.title = title
+
+            trip.message_history = messages
+            trip.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            logger.info(
+                "Stored %d-message history for trip %s", len(messages), trip_id
+            )
+
+    async def get_message_history(self, trip_id: str) -> list[dict]:
+        async with self._session_factory() as session:
+            trip = await session.get(Trip, trip_id)
+            if trip is None or not trip.message_history:
+                return []
+            return list(trip.message_history)
+
     async def delete_trip(self, trip_id: str) -> None:
         async with self._session_factory() as session:
             trip = await session.get(Trip, trip_id)
