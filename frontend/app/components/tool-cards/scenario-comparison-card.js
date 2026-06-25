@@ -1,0 +1,706 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { useAgent } from "@copilotkit/react-core/v2";
+import {
+  Compass,
+  Plane,
+  BedDouble,
+  Info,
+  X,
+  Clock,
+  Moon,
+  Timer,
+  Repeat,
+  MapPin,
+  ChevronDown,
+  Heart,
+  Check,
+  Trash2,
+} from "lucide-react";
+import { z } from "zod";
+import { formatPrice, parseResult } from "../../lib/format";
+import { saveScenario, deleteSavedScenario } from "../../lib/trips-api";
+
+export const scenarioComparisonParameters = z.object({
+  destination: z.string().optional(),
+  estimated: z.boolean().optional(),
+});
+
+const MODE_GLYPH = {
+  flight: "✈️",
+  train: "🚆",
+  bus: "🚌",
+  ferry: "🚢",
+  car: "🚗",
+  other: "🚐",
+};
+
+const STRESS_LABEL = { 1: "Relaxed", 2: "Easy", 3: "Moderate", 4: "Busy", 5: "Intense" };
+
+// Lower stress is better, so the gauge runs calm-green → busy-rose.
+const stressTone = (score) =>
+  score <= 2
+    ? { text: "text-emerald-600", pip: "bg-emerald-400" }
+    : score === 3
+    ? { text: "text-amber-600", pip: "bg-amber-400" }
+    : { text: "text-rose-500", pip: "bg-rose-400" };
+
+const fmtDay = (iso) => {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+};
+
+const fmtYear = (iso) => {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? "" : d.getFullYear();
+};
+
+const fmtTime = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+};
+
+const fmtDuration = (mins) => {
+  if (!mins || mins <= 0) return "";
+  const h = Math.floor(mins / 60);
+  const m = Math.round(mins % 60);
+  return h ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`;
+};
+
+const legMinutes = (leg) => {
+  const d = (new Date(leg.arrival_time) - new Date(leg.departure_time)) / 60000;
+  return Number.isFinite(d) && d > 0 ? Math.round(d) : 0;
+};
+
+const layoverMinutes = (a, b) => {
+  const d = (new Date(b.departure_time) - new Date(a.arrival_time)) / 60000;
+  return Number.isFinite(d) && d > 0 ? Math.round(d) : 0;
+};
+
+const nightsBetween = (checkIn, checkOut) => {
+  const d = (new Date(checkOut) - new Date(checkIn)) / 86400000;
+  return Number.isFinite(d) && d >= 1 ? Math.round(d) : null;
+};
+
+const tripNights = (start, end) => {
+  const d = (new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000;
+  return Number.isFinite(d) && d > 0 ? Math.round(d) : null;
+};
+
+function StressGauge({ score }) {
+  const tone = stressTone(score);
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span
+          key={n}
+          className={`h-1.5 flex-1 rounded-full ${n <= score ? tone.pip : "bg-pink-100"}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function StatTile({ icon: Icon, label, value }) {
+  return (
+    <div className="flex-1 min-w-[120px] px-3 py-2.5 rounded-xl bg-pink-50/60 border border-pink-100">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/60">
+        <Icon className="w-3.5 h-3.5 text-secondary" /> {label}
+      </div>
+      <div className="mt-1 text-lg font-extrabold text-foreground">{value}</div>
+    </div>
+  );
+}
+
+function CostBar({ icon: Icon, label, amount, total, currency, barClass }) {
+  const pct = total > 0 ? Math.max(4, Math.round(((amount || 0) / total) * 100)) : 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between text-sm mb-1">
+        <span className="flex items-center gap-1.5 font-medium text-foreground">
+          <Icon className="w-4 h-4 text-secondary" /> {label}
+        </span>
+        <span className="font-bold text-foreground">{formatPrice(amount, currency)}</span>
+      </div>
+      <div className="h-2 rounded-full bg-pink-100 overflow-hidden">
+        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function DayRow({ day, defaultOpen }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const schedule = day.schedule || [];
+  const headline = day.title || day.description;
+  return (
+    <div className="rounded-xl border border-pink-100 bg-surface overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-pink-50/60"
+      >
+        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-white text-xs font-bold shrink-0">
+          {String(day.day_number).padStart(2, "0")}
+        </span>
+        <span className="flex-1 text-sm font-semibold text-foreground line-clamp-1">
+          {headline}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-foreground/50 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="px-3 pb-3">
+          {day.title && day.description && (
+            <p className="text-xs text-foreground/70 mb-3">{day.description}</p>
+          )}
+          {schedule.length > 0 ? (
+            <ol className="flex flex-col gap-3">
+              {schedule.map((item, i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="shrink-0 mt-0.5 w-16 text-[11px] font-bold uppercase tracking-wide text-secondary">
+                    {item.period}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-foreground">{item.activity}</div>
+                    {item.location && (
+                      <div className="flex items-center gap-1 text-xs text-foreground/70 mt-0.5">
+                        <MapPin className="w-3 h-3 text-secondary" /> {item.location}
+                      </div>
+                    )}
+                    {item.details && (
+                      <p className="text-xs text-foreground/70 mt-0.5 leading-relaxed">{item.details}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            !day.title && day.description && (
+              <p className="text-xs text-foreground/70">{day.description}</p>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SAVE_LABEL = {
+  idle: "Save this trip",
+  saving: "Saving…",
+  saved: "Saved",
+  error: "Couldn't save — retry",
+};
+
+// Centered popup with the full itinerary for one scenario (opened from "View details").
+// When `savedId` is provided (opened from the Saved panel), the footer offers
+// "Remove from saved" instead of the save action.
+export function ScenarioDetailModal({ scenario, currency, destination, savedId, onRemoved, onClose }) {
+  const { agent } = useAgent();
+  const [saveState, setSaveState] = useState("idle");
+  const [removeState, setRemoveState] = useState("idle");
+
+  const handleSave = async () => {
+    if (saveState === "saving" || saveState === "saved") return;
+    setSaveState("saving");
+    try {
+      await saveScenario({
+        scenario,
+        tripId: agent?.threadId,
+        destination,
+        currency,
+      });
+      setSaveState("saved");
+    } catch (e) {
+      console.error("Failed to save scenario", e);
+      setSaveState("error");
+    }
+  };
+
+  const handleRemove = async () => {
+    if (removeState === "removing") return;
+    setRemoveState("removing");
+    try {
+      await deleteSavedScenario(savedId);
+      onRemoved?.(savedId);
+      onClose();
+    } catch (e) {
+      console.error("Failed to remove saved scenario", e);
+      setRemoveState("error");
+    }
+  };
+
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  if (typeof document === "undefined") return null;
+
+  const cb = scenario.cost_breakdown || {};
+  const sf = scenario.stress_factors || {};
+  const it = scenario.itinerary || {};
+  const legs = it.legs || [];
+  const stays = it.accommodations || [];
+  const days = it.days || [];
+  const highlights = scenario.highlights || [];
+  const tone = stressTone(scenario.stress_score);
+  const total = cb.grand_total || 0;
+  const nights = tripNights(scenario.start_date, scenario.end_date);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm" onClick={onClose} />
+
+      <div className="relative w-full max-w-[640px] max-h-[88vh] flex flex-col rounded-3xl bg-surface pink-shadow-deep overflow-hidden">
+        {/* Header */}
+        <div className="px-5 pt-4 pb-3 border-b border-pink-100">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-lg font-extrabold text-foreground leading-tight">{scenario.label}</h2>
+              <div className="flex items-center flex-wrap gap-2 mt-1">
+                {scenario.comparison_label && (
+                  <span className="px-2.5 py-0.5 bg-secondary/15 text-secondary rounded-full text-[11px] font-bold uppercase tracking-wide">
+                    {scenario.comparison_label}
+                  </span>
+                )}
+                <span className="text-xs font-medium text-foreground/70">
+                  {fmtDay(scenario.start_date)} – {fmtDay(scenario.end_date)}
+                  {fmtYear(scenario.end_date) ? `, ${fmtYear(scenario.end_date)}` : ""}
+                  {nights ? ` · ${nights} nights` : ""}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-foreground/60 hover:bg-pink-50 hover:text-foreground"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5">
+          {/* Price + stress */}
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-foreground/60">Total price</div>
+              <div className="text-3xl font-extrabold text-primary">{formatPrice(total, currency)}</div>
+            </div>
+            <div className="text-right">
+              <div className={`text-[11px] font-bold uppercase tracking-wider ${tone.text}`}>
+                {STRESS_LABEL[scenario.stress_score] || ""} · {scenario.stress_score}/5
+              </div>
+              <div className="mt-1 w-32 ml-auto">
+                <StressGauge score={scenario.stress_score} />
+              </div>
+            </div>
+          </div>
+
+          {/* Highlights */}
+          {highlights.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {highlights.map((h, i) => (
+                <span
+                  key={i}
+                  className="px-2.5 py-0.5 bg-pink-50 text-pink-700 border border-pink-100 rounded-full text-[11px] font-medium"
+                >
+                  {h}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Cost breakdown */}
+          <section>
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground/70 mb-2">Cost breakdown</h3>
+            <div className="flex flex-col gap-3">
+              <CostBar icon={Plane} label="Transport" amount={cb.transportation} total={total} currency={currency} barClass="bg-primary" />
+              <CostBar icon={BedDouble} label="Stay" amount={cb.accommodation} total={total} currency={currency} barClass="bg-secondary" />
+            </div>
+          </section>
+
+          {/* Stress factors */}
+          <section>
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground/70 mb-2">Stress factors</h3>
+            <div className="flex flex-wrap gap-2">
+              <StatTile icon={Repeat} label="Layovers" value={sf.layover_count ?? "—"} />
+              <StatTile icon={Moon} label="Overnight" value={sf.overnight_travel ? "Yes" : "No"} />
+              <StatTile icon={Timer} label="Tight conn." value={sf.tight_connection ? "Yes" : "No"} />
+              <StatTile
+                icon={Clock}
+                label="Travel time"
+                value={sf.total_travel_hours != null ? `${sf.total_travel_hours}h` : "—"}
+              />
+            </div>
+          </section>
+
+          {/* Travel timeline */}
+          {legs.length > 0 && (
+            <section>
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground/70 mb-2">Travel timeline</h3>
+              <ol className="flex flex-col">
+                {legs.map((leg, i) => {
+                  const mins = legMinutes(leg);
+                  const layover = i < legs.length - 1 ? layoverMinutes(leg, legs[i + 1]) : 0;
+                  return (
+                    <li key={i} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <span className="text-base leading-none mt-0.5">
+                          {MODE_GLYPH[leg.mode] || MODE_GLYPH.other}
+                        </span>
+                        {i < legs.length - 1 && <span className="flex-1 w-px bg-pink-200 my-1" />}
+                      </div>
+                      <div className="flex-1 pb-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-bold text-foreground">
+                            {leg.origin} → {leg.destination}
+                          </span>
+                          <span className="text-xs font-semibold text-foreground/70">
+                            {formatPrice(leg.cost, currency)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-foreground/70 mt-0.5">
+                          {fmtTime(leg.departure_time)}
+                          {fmtTime(leg.arrival_time) ? ` – ${fmtTime(leg.arrival_time)}` : ""}
+                          {mins ? ` · ${fmtDuration(mins)}` : ""}
+                          {leg.carrier ? ` · ${leg.carrier}` : ""}
+                        </div>
+                        {layover > 0 && (
+                          <div className="mt-1.5 inline-block px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-medium">
+                            {fmtDuration(layover)} layover in {leg.destination}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          )}
+
+          {/* Accommodation */}
+          {stays.length > 0 && (
+            <section>
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground/70 mb-2">Accommodation</h3>
+              <div className="flex flex-col gap-2">
+                {stays.map((s, i) => {
+                  const n = nightsBetween(s.check_in, s.check_out);
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-surface border border-pink-100 purple-shadow"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-foreground truncate">{s.name}</div>
+                        <div className="flex items-center gap-1 text-xs text-foreground/70">
+                          <MapPin className="w-3 h-3 text-secondary" /> {s.location}
+                          {n ? ` · ${n} nights` : ""}
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-sm font-bold text-foreground">
+                        {formatPrice(s.cost, currency)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Day-by-day */}
+          {days.length > 0 && (
+            <section>
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground/70 mb-2">Itinerary highlights</h3>
+              <div className="flex flex-col gap-2">
+                {days.map((d, i) => (
+                  <DayRow key={i} day={d} defaultOpen={i === 0} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Reasoning */}
+          {scenario.reasoning_summary && (
+            <section className="px-3 py-2.5 rounded-xl bg-pink-50/60 border border-pink-100">
+              <p className="text-xs text-foreground/80 leading-relaxed">{scenario.reasoning_summary}</p>
+            </section>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-pink-100 flex flex-col gap-1.5">
+          {savedId ? (
+            <button
+              type="button"
+              onClick={handleRemove}
+              disabled={removeState === "removing"}
+              className={`w-full py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-2 bouncy-hover border ${
+                removeState === "error"
+                  ? "border-rose-300 text-rose-600 bg-rose-50"
+                  : "border-pink-200 text-rose-600 hover:bg-rose-50"
+              } ${removeState === "removing" ? "opacity-70" : ""}`}
+            >
+              <Trash2 className="w-4 h-4" />
+              {removeState === "removing"
+                ? "Removing…"
+                : removeState === "error"
+                ? "Couldn't remove — retry"
+                : "Remove from saved"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saveState === "saving" || saveState === "saved"}
+              className={`w-full py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-2 bouncy-hover pink-shadow ${
+                saveState === "saved"
+                  ? "bg-emerald-500 text-white"
+                  : saveState === "error"
+                  ? "bg-rose-500 text-white"
+                  : "bg-primary text-white"
+              } ${saveState === "saving" ? "opacity-70" : ""}`}
+            >
+              {saveState === "saved" ? <Check className="w-4 h-4" /> : <Heart className="w-4 h-4" />}
+              {SAVE_LABEL[saveState]}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-1.5 text-xs font-semibold text-foreground/60 hover:text-foreground"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ScenarioCard({ scenario, currency, destination, bestValue, lowestStress }) {
+  const [detailOpen, setDetailOpen] = useState(false);
+  const cb = scenario.cost_breakdown || {};
+  const tone = stressTone(scenario.stress_score);
+  const legs = (scenario.itinerary?.legs || []).slice(0, 4);
+  const highlights = (scenario.highlights || []).slice(0, 4);
+
+  return (
+    <div
+      className={`flex-1 min-w-[240px] flex flex-col p-4 rounded-2xl bg-surface bouncy-hover ${
+        bestValue ? "border-2 border-primary pink-shadow-deep" : "border border-pink-100 pink-shadow"
+      }`}
+    >
+      {/* Derived badges */}
+      <div className="flex items-center justify-between gap-2 mb-2 min-h-[22px]">
+        {lowestStress ? (
+          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-bold uppercase tracking-wider">
+            Lowest stress
+          </span>
+        ) : (
+          <span />
+        )}
+        {bestValue && (
+          <span className="px-2.5 py-0.5 bg-primary text-white rounded-full text-[10px] font-bold uppercase tracking-wider">
+            Best value
+          </span>
+        )}
+      </div>
+
+      {/* Title + dates */}
+      <h3 className="text-base font-extrabold text-foreground leading-tight">
+        {scenario.comparison_label || scenario.label}
+      </h3>
+      <p className="text-xs font-medium text-foreground/70 mt-0.5">
+        {fmtDay(scenario.start_date)} — {fmtDay(scenario.end_date)}
+        {fmtYear(scenario.end_date) ? `, ${fmtYear(scenario.end_date)}` : ""}
+      </p>
+
+      {/* Hero price + cost breakdown */}
+      <div className="mt-3 pt-3 border-t border-pink-100">
+        <div className="flex items-baseline justify-between">
+          <span className="text-2xl font-extrabold text-primary">
+            {formatPrice(cb.grand_total, currency)}
+          </span>
+          <span className="text-[11px] font-medium text-foreground/60">total</span>
+        </div>
+        <div className="mt-2 flex flex-col gap-1.5 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-medium text-foreground">
+              <Plane className="w-4 h-4 text-secondary" /> Transport
+            </span>
+            <span className="font-semibold text-foreground">
+              {formatPrice(cb.transportation, currency)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-medium text-foreground">
+              <BedDouble className="w-4 h-4 text-secondary" /> Stay
+            </span>
+            <span className="font-semibold text-foreground">
+              {formatPrice(cb.accommodation, currency)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Stress score */}
+      <div className="mt-3 pt-3 border-t border-pink-100">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-foreground/70">
+            Stress score
+          </span>
+          <span className={`text-xs font-bold ${tone.text}`}>
+            {scenario.stress_score}/5 ({STRESS_LABEL[scenario.stress_score] || ""})
+          </span>
+        </div>
+        <StressGauge score={scenario.stress_score} />
+      </div>
+
+      {/* Highlight chips */}
+      {highlights.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          {highlights.map((h, i) => (
+            <span
+              key={i}
+              className="px-2 py-0.5 bg-pink-50 text-pink-700 border border-pink-100 rounded-full text-[11px] font-medium"
+            >
+              {h}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Transport leg summary */}
+      {legs.length > 0 && (
+        <div className="mt-3 px-3 py-2 rounded-xl bg-pink-50/60 border border-pink-100">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-foreground">
+            {legs.map((leg, i) => (
+              <span key={i} className="flex items-center gap-1.5">
+                {i > 0 && <span className="text-foreground/40">→</span>}
+                <span>{MODE_GLYPH[leg.mode] || MODE_GLYPH.other}</span>
+                <span className="font-semibold">{leg.origin}</span>
+                {fmtTime(leg.departure_time) && (
+                  <span className="text-foreground/70">{fmtTime(leg.departure_time)}</span>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer action */}
+      <button
+        type="button"
+        onClick={() => setDetailOpen(true)}
+        className="mt-3 w-full py-2 rounded-xl border border-pink-200 text-primary text-sm font-semibold bouncy-hover hover:bg-pink-50"
+      >
+        View details
+      </button>
+
+      {detailOpen && (
+        <ScenarioDetailModal
+          scenario={scenario}
+          currency={currency}
+          destination={destination}
+          onClose={() => setDetailOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ComparisonShell({ destination, estimated, spin = false, children }) {
+  return (
+    <div
+      className={`p-4 my-2.5 rounded-2xl bg-surface border border-pink-100 pink-shadow ${
+        spin ? "animate-pulse" : ""
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <Compass className={`w-4 h-4 text-primary ${spin ? "animate-spin" : ""}`} />
+        <span className="text-xs font-bold uppercase tracking-wider text-primary">
+          {spin ? "Building scenarios" : "Scenario Comparison"}
+          {destination ? ` · ${destination}` : ""}
+          {spin ? "…" : ""}
+        </span>
+        {estimated && !spin && (
+          <span
+            title="Live fares were unavailable, so these costs are approximate estimates."
+            className="px-2.5 py-0.5 bg-amber-400 text-amber-950 border border-amber-500 rounded-full text-[11px] font-bold inline-flex items-center gap-1"
+          >
+            <Info className="w-3 h-3" /> approx costs
+          </span>
+        )}
+      </div>
+      <div className="flex flex-col md:flex-row gap-3 items-stretch">{children}</div>
+    </div>
+  );
+}
+
+// Generative UI for generate_scenarios — side-by-side scenario comparison cards.
+export function ScenarioComparisonCard({ status, parameters, result }) {
+  const destination = parameters?.destination || "";
+
+  if (status !== "complete") {
+    return (
+      <ComparisonShell destination={destination} spin>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex-1 min-w-[240px] h-56 rounded-2xl shimmer" />
+        ))}
+      </ComparisonShell>
+    );
+  }
+
+  const data = parseResult(result);
+  const scenarios = data?.scenarios || [];
+  if (scenarios.length === 0) return null;
+  const currency = data?.currency || "EUR";
+
+  // Derive the highlighted options client-side: cheapest = best value,
+  // least stressful = lowest stress.
+  let bestValueIdx = 0;
+  let lowestStressIdx = 0;
+  scenarios.forEach((s, i) => {
+    const total = s.cost_breakdown?.grand_total ?? Infinity;
+    const best = scenarios[bestValueIdx].cost_breakdown?.grand_total ?? Infinity;
+    if (total < best) bestValueIdx = i;
+    if ((s.stress_score ?? 99) < (scenarios[lowestStressIdx].stress_score ?? 99)) lowestStressIdx = i;
+  });
+
+  return (
+    <ComparisonShell destination={data?.destination || destination} estimated={data?.estimated}>
+      {scenarios.map((s, i) => (
+        <ScenarioCard
+          key={i}
+          scenario={s}
+          currency={currency}
+          destination={data?.destination || destination}
+          bestValue={i === bestValueIdx}
+          lowestStress={i === lowestStressIdx && scenarios.length > 1}
+        />
+      ))}
+    </ComparisonShell>
+  );
+}

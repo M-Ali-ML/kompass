@@ -197,6 +197,62 @@ async def search_web(ctx: RunContext[AgentDependencies], query: str) -> str:
     return await run_research(full_query)
 
 
+@kompass_agent.tool
+async def generate_scenarios(
+    ctx: RunContext[AgentDependencies],
+    destination: str,
+    scenarios: list[Scenario],
+    estimated: bool = False,
+) -> dict:
+    """Present 2-3 fully-formed travel scenarios for side-by-side comparison.
+
+    Build each `Scenario` yourself first — research real prices and dates with
+    `search_web` / `find_cheapest_dates` / `search_flights`, assemble the
+    itineraries, compute each `cost_breakdown`, and assess each `stress_score`
+    from its `stress_factors`. Then call this tool **once** with the complete
+    list to render a comparison view. Provide 2 or 3 scenarios that differ on
+    date window, price, and/or stress so the traveler has a meaningful choice.
+
+    Args:
+        destination: The destination being compared (e.g. 'Santorini').
+        scenarios: The complete list of 2-3 `Scenario` objects to compare.
+        estimated: True if any prices are approximate because live data was
+            unavailable (surfaces an "≈ approx" badge to the traveler).
+    """
+    # The comparison view is only meaningful with at least two options. Reject a
+    # single scenario with a corrective message so the agent re-calls once with
+    # the full set rather than rendering a lone card.
+    if len(scenarios) < 2:
+        logger.warning(
+            f"generate_scenarios called with {len(scenarios)} scenario(s); requesting 2-3."
+        )
+        return {
+            "error": (
+                f"generate_scenarios needs 2-3 distinct scenarios for a side-by-side "
+                f"comparison, but you provided {len(scenarios)}. Re-call this tool ONCE "
+                "with 2 or 3 scenarios that differ on date window, price, and/or stress."
+            ),
+            "scenarios": [],
+        }
+
+    currency = ctx.deps.user_preferences.currency
+    # Keep the displayed math self-consistent: the grand total is always the
+    # sum of its parts, regardless of what the model put in the field.
+    for s in scenarios:
+        cb = s.cost_breakdown
+        cb.grand_total = round(cb.transportation + cb.accommodation, 2)
+    logger.info(
+        f"generate_scenarios destination={destination!r} count={len(scenarios)} "
+        f"currency={currency} estimated={estimated}"
+    )
+    return {
+        "destination": destination,
+        "currency": currency,
+        "estimated": estimated,
+        "scenarios": [s.model_dump(mode="json") for s in scenarios],
+    }
+
+
 @kompass_agent.system_prompt(dynamic=True)
 def get_system_prompt(ctx: RunContext[AgentDependencies]) -> str:
     """Dynamically loads system prompt from the injected service and formats current context."""

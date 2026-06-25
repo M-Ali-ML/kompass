@@ -20,6 +20,10 @@ class Settings(BaseSettings):
 
     google_api_key: str = Field(alias="GOOGLE_API_KEY")
     llm_model: str = Field("google:gemini-2.5-pro", alias="LLM_MODEL")
+
+    # Flights provider (SerpApi Google Flights). Optional: when unset, the
+    # flight tools degrade to the grounded search_web tool.
+    serpapi_api_key: Optional[str] = Field(None, alias="SERPAPI_API_KEY")
     
     # Langfuse telemetry configuration
     langfuse_secret_key: Optional[str] = Field(None, alias="LANGFUSE_SECRET_KEY")
@@ -39,6 +43,9 @@ settings = Settings()
 # Export settings to os.environ for third-party SDKs (Gemini, Langfuse, etc.)
 if settings.google_api_key:
     os.environ["GOOGLE_API_KEY"] = settings.google_api_key
+if settings.serpapi_api_key:
+    # Exported so the Flights MCP subprocess (inherits os.environ) can read it.
+    os.environ["SERPAPI_API_KEY"] = settings.serpapi_api_key
 if settings.langfuse_secret_key:
     os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
 if settings.langfuse_public_key:

@@ -40,11 +40,41 @@ class Accommodation(BaseModel):
     )
     cost: float = Field(..., description="Total cost of the stay for this accommodation.", ge=0.0)
 
+class PlanItem(BaseModel):
+    """A single scheduled activity within a day."""
+    period: str = Field(
+        ...,
+        description="Time-of-day or clock time, e.g. 'Morning', 'Afternoon', 'Evening', or '09:00'.",
+    )
+    activity: str = Field(
+        ...,
+        description="Short title of the activity (e.g. 'Explore the Old Town', 'Sunset boat tour').",
+    )
+    details: str | None = Field(
+        None,
+        description="One practical sentence of context (what/why/how, tips, rough cost or duration).",
+    )
+    location: str | None = Field(
+        None,
+        description="Specific place, neighborhood, or venue for this activity, if relevant.",
+    )
+
+
 class DaySummary(BaseModel):
-    """Represents a daily outline of activities for the traveler."""
+    """A comprehensive day-by-day plan entry for the traveler."""
     day_number: int = Field(..., description="The day index of the trip (starting from 1).", ge=1)
-    activities: list[str] = Field(..., description="Key activities planned for this day.")
-    description: str = Field(..., description="Brief descriptive narrative of the day's vibe and plans.")
+    title: str = Field(
+        ...,
+        description="A short, evocative headline for the day (e.g. 'Arrival & Sunset Stroll').",
+    )
+    description: str = Field(..., description="Brief narrative of the day's vibe and overall plan.")
+    schedule: list[PlanItem] = Field(
+        default_factory=list,
+        description=(
+            "Time-ordered activities for the day (morning → afternoon → evening). "
+            "Provide 3-5 concrete items with specific places, not generic filler."
+        ),
+    )
 
 class Itinerary(BaseModel):
     """Aggregates all transit legs, lodgings, and daily plans for a single option."""

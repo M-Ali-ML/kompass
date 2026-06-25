@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.db import Base
 from app.adapters.sqlite_trip_repository import SqliteTripRepository
 from app.adapters.sqlite_user_profile_repository import SqliteUserProfileRepository
+from app.adapters.sqlite_saved_scenario_repository import SqliteSavedScenarioRepository
 from app.domain import UserPreferences
 
 
@@ -83,6 +84,59 @@ async def test_profile_persistence_and_merge(session_factory):
     assert merged.direct_flights_only is True
     assert merged.vibe_tags == ["foodie"]
     assert merged.hotel_class == "5-star"
+
+
+@pytest.mark.asyncio
+async def test_saved_scenario_lifecycle_and_denormalization(session_factory):
+    trip_repo = SqliteTripRepository(session_factory)
+    saved_repo = SqliteSavedScenarioRepository(session_factory)
+    await trip_repo.upsert_trip("thread-1", "Trip to Italy")
+
+    scenario = {
+        "label": "Express Flight & Coastal Hotel",
+        "comparison_label": "Early September",
+        "destination": "Naples, Italy",
+        "currency": "EUR",
+        "start_date": "2026-09-04",
+        "end_date": "2026-09-11",
+        "stress_score": 2,
+        "cost_breakdown": {"transportation": 190, "accommodation": 1050, "grand_total": 1240},
+        "stress_factors": {"layover_count": 0},
+        "itinerary": {"legs": [], "accommodations": [], "days": []},
+    }
+    saved = await saved_repo.save(scenario=scenario, trip_id="thread-1")
+
+    # Key fields denormalized onto columns for querying.
+    assert saved.id is not None
+    assert saved.trip_id == "thread-1"
+    assert saved.destination == "Naples, Italy"
+    assert saved.grand_total == 1240
+    assert saved.stress_score == 2
+    assert saved.start_date == "2026-09-04"
+    # Full payload preserved in JSON.
+    assert saved.scenario["cost_breakdown"]["grand_total"] == 1240
+
+    # A second save linked to a different trip; filtering by trip works.
+    await saved_repo.save(scenario={"label": "Other", "destination": "Rome"}, trip_id="thread-2")
+    assert len(await saved_repo.list_saved()) == 2
+    only_trip1 = await saved_repo.list_saved(trip_id="thread-1")
+    assert len(only_trip1) == 1
+    assert only_trip1[0].destination == "Naples, Italy"
+
+    fetched = await saved_repo.get(saved.id)
+    assert fetched is not None and fetched.label == "Express Flight & Coastal Hotel"
+
+    await saved_repo.delete(saved.id)
+    assert await saved_repo.get(saved.id) is None
+
+
+@pytest.mark.asyncio
+async def test_saved_scenario_defaults_when_minimal(session_factory):
+    saved_repo = SqliteSavedScenarioRepository(session_factory)
+    saved = await saved_repo.save(scenario={})
+    assert saved.trip_id is None
+    assert saved.label == "Saved scenario"
+    assert saved.currency == "EUR"
 
 
 def test_extract_display_messages_flattens_turns():

@@ -42,93 +42,127 @@ def test_month_to_range_name_with_year():
     assert _month_to_range("September 2027") == ("2027-09-01", "2027-09-30")
 
 
-# --- Synthetic fallback (offline, deterministic) ------------------------------
+# --- No API key → degrade to search_web (no fabricated data) -------------------
 
-def test_synthetic_flights_shape_and_determinism():
-    a = flights_server._synthetic_flights("BER", "ATH", "2026-09-10", 2, None, "EUR")
-    b = flights_server._synthetic_flights("BER", "ATH", "2026-09-10", 2, None, "EUR")
-    assert a == b  # deterministic
-    assert len(a) >= 1
-    opt = FlightOption(**a[0])  # validates against the domain schema
-    assert opt.estimated is True
-    assert opt.currency == "EUR"
-    assert a == sorted(a, key=lambda o: o["price"])  # cheapest first
-
-
-def test_synthetic_flights_direct_only():
-    opts = flights_server._synthetic_flights("BER", "ATH", "2026-09-10", 1, 0, "EUR")
-    assert all(o["stops"] == 0 for o in opts)
-
-
-def test_synthetic_cheapest_dates_round_trip_returns_dates():
-    opts = flights_server._synthetic_cheapest_dates(
-        "BER", "ATH", "2026-09-01", "2026-09-30", 7, "GBP"
-    )
-    assert len(opts) >= 1
-    parsed = FlightDateOption(**opts[0])
-    assert parsed.return_date is not None
-    assert parsed.currency == "GBP"
-    assert opts == sorted(opts, key=lambda o: o["price"])
-
-
-def test_search_flights_tool_falls_back_to_synthetic(monkeypatch):
-    monkeypatch.setattr(flights_server, "_LIVE_BACKOFF_BASE", 0.0)
-
-    def boom(*args, **kwargs):
-        raise RuntimeError("network down")
-
-    monkeypatch.setattr(flights_server, "_live_flights", boom)
+def test_search_flights_unavailable_without_api_key(monkeypatch):
+    monkeypatch.setattr(flights_server, "_api_key", lambda: None)
     result = flights_server.search_flights("BER", "ATH", "2026-09-10", currency="EUR")
-    assert result["estimated"] is True
-    assert len(result["options"]) >= 1
-
-
-def test_search_flights_tool_retries_transient_failures(monkeypatch):
-    """A transient blip (empty/error) is retried; a later success yields real data."""
-    monkeypatch.setattr(flights_server, "_LIVE_BACKOFF_BASE", 0.0)
-    monkeypatch.setattr(flights_server, "_LIVE_MAX_ATTEMPTS", 4)
-    calls = {"n": 0}
-
-    real_option = {
-        "origin": "BER",
-        "destination": "ATH",
-        "departure_time": "2026-09-10T09:00:00",
-        "arrival_time": "2026-09-10T12:00:00",
-        "duration_minutes": 180,
-        "stops": 0,
-        "airline": "Aegean Airlines",
-        "price": 120.0,
-        "currency": "EUR",
-        "estimated": False,
-    }
-
-    def flaky(*args, **kwargs):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise RuntimeError("transient gRPC INTERNAL")
-        if calls["n"] == 2:
-            return []  # transient empty envelope
-        return [real_option]
-
-    monkeypatch.setattr(flights_server, "_live_flights", flaky)
-    result = flights_server.search_flights("BER", "ATH", "2026-09-10", currency="EUR")
+    assert result["options"] == []
     assert result["estimated"] is False
-    assert calls["n"] == 3
-    assert result["options"][0]["airline"] == "Aegean Airlines"
+    assert result["available"] is False
+    assert result["currency"] == "EUR"
 
 
-def test_live_with_retries_gives_up_after_max_attempts(monkeypatch):
-    monkeypatch.setattr(flights_server, "_LIVE_BACKOFF_BASE", 0.0)
-    monkeypatch.setattr(flights_server, "_LIVE_MAX_ATTEMPTS", 3)
-    attempts = {"n": 0}
+def test_find_cheapest_dates_unavailable_without_api_key(monkeypatch):
+    monkeypatch.setattr(flights_server, "_api_key", lambda: None)
+    result = flights_server.find_cheapest_dates(
+        "BER", "ATH", "2026-09-01", "2026-09-30", duration_days=7, currency="GBP"
+    )
+    assert result["options"] == []
+    assert result["available"] is False
+    assert result["currency"] == "GBP"
 
-    def always_empty():
-        attempts["n"] += 1
-        return []
 
-    out = flights_server._live_with_retries(always_empty, "test")
-    assert out == []
-    assert attempts["n"] == 3
+def test_synthetic_estimators_are_gone():
+    # The misleading synthetic generators must no longer exist on the server.
+    assert not hasattr(flights_server, "_synthetic_flights")
+    assert not hasattr(flights_server, "_synthetic_cheapest_dates")
+
+
+# --- SerpApi parsing (mocked HTTP) --------------------------------------------
+
+_SERPAPI_FLIGHTS_FIXTURE = {
+    "best_flights": [
+        {
+            "flights": [
+                {
+                    "departure_airport": {"id": "BER", "time": "2026-09-10 09:00"},
+                    "arrival_airport": {"id": "MUC", "time": "2026-09-10 10:10"},
+                    "airline": "Lufthansa",
+                },
+                {
+                    "departure_airport": {"id": "MUC", "time": "2026-09-10 11:30"},
+                    "arrival_airport": {"id": "ATH", "time": "2026-09-10 14:45"},
+                    "airline": "Lufthansa",
+                },
+            ],
+            "layovers": [{"duration": 80, "name": "Munich", "id": "MUC"}],
+            "total_duration": 345,
+            "price": 210,
+        }
+    ],
+    "other_flights": [
+        {
+            "flights": [
+                {
+                    "departure_airport": {"id": "BER", "time": "2026-09-10 07:00"},
+                    "arrival_airport": {"id": "ATH", "time": "2026-09-10 10:15"},
+                    "airline": "Aegean Airlines",
+                }
+            ],
+            "layovers": [],
+            "total_duration": 195,
+            "price": 165,
+        }
+    ],
+    "price_insights": {"lowest_price": 165},
+}
+
+
+def test_search_flights_parses_serpapi(monkeypatch):
+    monkeypatch.setattr(flights_server, "_api_key", lambda: "test-key")
+    captured = {}
+
+    def fake_search(params):
+        captured["params"] = params
+        return _SERPAPI_FLIGHTS_FIXTURE
+
+    monkeypatch.setattr(flights_server, "_serpapi_search", fake_search)
+    result = flights_server.search_flights(
+        "ber", "ath", "2026-09-10", passengers=2, max_stops=0, preferred_time="6-20", currency="EUR"
+    )
+
+    assert result["available"] is True
+    assert result["estimated"] is False
+    # Request mapping: one-way, sorted by price, direct-only stops=1, adults, currency, times.
+    assert captured["params"]["type"] == 2
+    assert captured["params"]["stops"] == 1  # max_stops=0 -> nonstop only
+    assert captured["params"]["adults"] == 2
+    assert captured["params"]["currency"] == "EUR"
+    assert captured["params"]["outbound_times"] == "6,20"
+    # Cheapest first; multi-segment parsed with layover count + ISO times.
+    opts = result["options"]
+    assert [o["price"] for o in opts] == [165.0, 210.0]
+    cheapest = FlightOption(**opts[0])
+    assert cheapest.stops == 0 and cheapest.airline == "Aegean Airlines"
+    multi = FlightOption(**opts[1])
+    assert multi.stops == 1
+    assert multi.departure_time == "2026-09-10T09:00:00"
+    assert multi.arrival_time == "2026-09-10T14:45:00"
+
+
+def test_find_cheapest_dates_parses_serpapi(monkeypatch):
+    monkeypatch.setattr(flights_server, "_api_key", lambda: "test-key")
+    monkeypatch.setattr(flights_server, "_DATE_SAMPLES", 3)
+    calls = []
+
+    def fake_search(params):
+        calls.append(params["outbound_date"])
+        # Vary price by day so ranking is observable.
+        price = 100 + len(calls) * 10
+        return {"best_flights": [{"price": price, "flights": []}], "price_insights": {}}
+
+    monkeypatch.setattr(flights_server, "_serpapi_search", fake_search)
+    result = flights_server.find_cheapest_dates(
+        "BER", "ATH", "2026-09-01", "2026-09-30", duration_days=7, currency="USD"
+    )
+
+    assert result["available"] is True
+    assert len(calls) == 3  # bounded by _DATE_SAMPLES
+    parsed = FlightDateOption(**result["options"][0])
+    assert parsed.return_date is not None  # round trip carries a return date
+    assert parsed.currency == "USD"
+    assert result["options"] == sorted(result["options"], key=lambda o: o["price"])
 
 
 # --- Adapter parsing (no subprocess) ------------------------------------------

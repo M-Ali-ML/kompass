@@ -14,8 +14,8 @@ export function ToolCard({ icon: Icon, label, loading = false, spin = false, app
         </span>
         {approx && (
           <span
-            title="Live prices were briefly unavailable, so these are approximate."
-            className="px-2 py-0.5 bg-surface text-muted border border-pink-100 rounded-full text-[10px] font-medium"
+            title="Live prices were unavailable, so these are approximate estimates."
+            className="px-2 py-0.5 bg-amber-400 text-amber-950 border border-amber-500 rounded-full text-[10px] font-bold"
           >
             ≈ approx
           </span>

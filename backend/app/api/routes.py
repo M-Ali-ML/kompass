@@ -13,6 +13,8 @@ from app.db import SessionLocal
 from app.domain import UserPreferences
 from app.adapters.sqlite_trip_repository import SqliteTripRepository
 from app.adapters.sqlite_user_profile_repository import SqliteUserProfileRepository
+from app.adapters.sqlite_saved_scenario_repository import SqliteSavedScenarioRepository
+from app.telemetry import stream_with_attributes
 
 logger = logging.getLogger("kompass.routes")
 
@@ -25,6 +27,10 @@ def _trip_repository() -> SqliteTripRepository:
 
 def _profile_repository() -> SqliteUserProfileRepository:
     return SqliteUserProfileRepository(SessionLocal)
+
+
+def _saved_scenario_repository() -> SqliteSavedScenarioRepository:
+    return SqliteSavedScenarioRepository(SessionLocal)
 
 
 def extract_preferences_from_history(messages) -> UserPreferences:
@@ -138,12 +144,30 @@ async def copilotkit_endpoint(request: Request):
         except Exception as e:
             logger.error(f"Error persisting messages for trip {thread_id}: {e}")
 
-    return await AGUIAdapter.dispatch_request(
+    response = await AGUIAdapter.dispatch_request(
         request,
         agent=kompass_agent,
         deps=deps,
         on_complete=on_complete,
     )
+
+    # The agent runs lazily as the streaming body is consumed (after this
+    # handler returns), so trace attributes must wrap the body iterator rather
+    # than the dispatch call. `session_id` groups all turns of a trip thread in
+    # Langfuse; tags make agent traces easy to filter. (`session_id` is also
+    # emitted automatically via the AG-UI threadId -> gen_ai.conversation.id
+    # mapping, but we set it explicitly to be robust and add tags.) Only
+    # streaming responses expose `body_iterator`; a non-streaming error response
+    # (e.g. a 422) is returned untouched.
+    body_iterator = getattr(response, "body_iterator", None)
+    if thread_id and body_iterator is not None:
+        response.body_iterator = stream_with_attributes(
+            body_iterator,
+            session_id=thread_id,
+            tags=["kompass-agent"],
+        )
+
+    return response
 
 
 # --- Session / trip management -------------------------------------------------
@@ -194,6 +218,66 @@ async def get_trip(trip_id: str):
 async def delete_trip(trip_id: str):
     await _trip_repository().delete_trip(trip_id)
     return {"status": "deleted", "id": trip_id}
+
+
+# --- Saved scenarios -----------------------------------------------------------
+
+class SaveScenarioRequest(BaseModel):
+    scenario: dict
+    trip_id: str | None = None
+    destination: str | None = None
+    currency: str | None = None
+
+
+def _serialize_saved(s) -> dict:
+    return {
+        "id": s.id,
+        "trip_id": s.trip_id,
+        "destination": s.destination,
+        "label": s.label,
+        "comparison_label": s.comparison_label,
+        "start_date": s.start_date,
+        "end_date": s.end_date,
+        "currency": s.currency,
+        "grand_total": s.grand_total,
+        "stress_score": s.stress_score,
+        "scenario": s.scenario,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+@router.post("/api/saved-scenarios")
+async def save_scenario(payload: SaveScenarioRequest):
+    # Fold the comparison-level destination/currency into the scenario payload so
+    # the saved record is self-contained and queryable.
+    scenario = dict(payload.scenario or {})
+    if payload.destination and not scenario.get("destination"):
+        scenario["destination"] = payload.destination
+    if payload.currency and not scenario.get("currency"):
+        scenario["currency"] = payload.currency
+
+    saved = await _saved_scenario_repository().save(scenario=scenario, trip_id=payload.trip_id)
+    return _serialize_saved(saved)
+
+
+@router.get("/api/saved-scenarios")
+async def list_saved_scenarios(trip_id: str | None = None):
+    saved = await _saved_scenario_repository().list_saved(trip_id=trip_id)
+    return {"saved": [_serialize_saved(s) for s in saved]}
+
+
+@router.get("/api/saved-scenarios/{saved_id}")
+async def get_saved_scenario(saved_id: int):
+    saved = await _saved_scenario_repository().get(saved_id)
+    if saved is None:
+        raise HTTPException(status_code=404, detail="Saved scenario not found")
+    return _serialize_saved(saved)
+
+
+@router.delete("/api/saved-scenarios/{saved_id}")
+async def delete_saved_scenario(saved_id: int):
+    await _saved_scenario_repository().delete(saved_id)
+    return {"status": "deleted", "id": saved_id}
 
 
 # --- Global user profile -------------------------------------------------------

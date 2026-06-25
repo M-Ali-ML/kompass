@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, MapPin, Trash2, Loader2 } from "lucide-react";
 import { listTrips, deleteTrip } from "../lib/trips-api";
+import { SavedList } from "./saved-list";
 
 export function TripSidebar({ activeThreadId, onNewTrip, onSelectTrip, reloadKey }) {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("trips");
 
   const load = useCallback(async () => {
     try {
@@ -47,12 +49,31 @@ export function TripSidebar({ activeThreadId, onNewTrip, onSelectTrip, reloadKey
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3">
-        <div className="px-2 mb-2 text-xs font-bold uppercase tracking-wider text-muted">
-          Your Trips
+      <div className="px-3 pt-3">
+        <div className="flex gap-1 p-1 bg-pink-50/60 rounded-2xl">
+          {[
+            { id: "trips", label: "Trips" },
+            { id: "saved", label: "Saved" },
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                tab === t.id
+                  ? "bg-surface text-primary pink-shadow"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
+      </div>
 
-        {loading ? (
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        {tab === "saved" ? (
+          <SavedList reloadKey={reloadKey} />
+        ) : loading ? (
           <div className="flex items-center gap-2 px-2 py-3 text-sm text-muted">
             <Loader2 className="w-4 h-4 animate-spin" />
             Loading…

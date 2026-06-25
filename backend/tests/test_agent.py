@@ -66,13 +66,40 @@ async def test_agent_scenario_structured_response(agent_deps):
             "days": [
                 {
                     "day_number": 1,
-                    "activities": ["Arrive and check in", "Evening walk in Plaka"],
-                    "description": "Welcome to Athens!"
+                    "title": "Arrival & Plaka Stroll",
+                    "description": "Welcome to Athens!",
+                    "schedule": [
+                        {
+                            "period": "Afternoon",
+                            "activity": "Arrive and check in",
+                            "location": "Athens",
+                            "details": "Drop bags at the hotel and freshen up."
+                        },
+                        {
+                            "period": "Evening",
+                            "activity": "Evening walk in Plaka",
+                            "location": "Plaka"
+                        }
+                    ]
                 }
             ]
         },
-        "total_cost": 950.0,
+        "comparison_label": "Early September",
+        "start_date": "2026-09-10",
+        "end_date": "2026-09-20",
+        "cost_breakdown": {
+            "transportation": 150.0,
+            "accommodation": 800.0,
+            "grand_total": 950.0,
+        },
         "stress_score": 1,
+        "stress_factors": {
+            "layover_count": 0,
+            "overnight_travel": False,
+            "tight_connection": False,
+            "total_travel_hours": 3.5,
+        },
+        "highlights": ["Direct flight", "Single hotel"],
         "reasoning_summary": "Direct flight and simple single accommodation makes this highly relaxed."
     }
     
@@ -90,7 +117,7 @@ async def test_agent_scenario_structured_response(agent_deps):
     assert result.output.label == "Scenario A: Economy Greece Trip"
     assert len(result.output.itinerary.legs) == 1
     assert result.output.itinerary.legs[0].origin == "BER"
-    assert result.output.total_cost == 950.0
+    assert result.output.cost_breakdown.grand_total == 950.0
     assert result.output.stress_score == 1
 
 @pytest.mark.asyncio
@@ -116,4 +143,74 @@ async def test_gather_preferences_tool(agent_deps):
     assert "Successfully gathered user preferences" in res
     assert agent_deps.user_preferences.direct_flights_only is True
     assert "foodie" in agent_deps.user_preferences.vibe_tags
+
+
+def _make_scenario(label: str, transport: float, accom: float, claimed_total: float) -> Scenario:
+    return Scenario(
+        label=label,
+        comparison_label=label,
+        start_date="2026-09-04",
+        end_date="2026-09-11",
+        itinerary={"legs": [], "accommodations": [], "days": []},
+        cost_breakdown={
+            "transportation": transport,
+            "accommodation": accom,
+            # Intentionally wrong so the tool must normalize it.
+            "grand_total": claimed_total,
+        },
+        stress_score=2,
+        stress_factors={
+            "layover_count": 1,
+            "overnight_travel": False,
+            "tight_connection": False,
+            "total_travel_hours": 6.0,
+        },
+        highlights=["1 layover"],
+        reasoning_summary="A balanced option.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_generate_scenarios_normalizes_totals_and_payload(agent_deps):
+    from app.agent.agent import generate_scenarios
+    from pydantic_ai import RunContext
+    from app.domain import UserPreferences
+
+    agent_deps.user_preferences = UserPreferences(currency="USD")
+    ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
+
+    scenarios = [
+        _make_scenario("Early September", 340.0, 900.0, claimed_total=0.0),
+        _make_scenario("Late August", 480.0, 1200.0, claimed_total=999.0),
+    ]
+
+    payload = await generate_scenarios(ctx, "Santorini", scenarios, estimated=True)
+
+    assert payload["destination"] == "Santorini"
+    assert payload["currency"] == "USD"
+    assert payload["estimated"] is True
+    assert len(payload["scenarios"]) == 2
+    # Grand totals are recomputed from their parts regardless of the input value.
+    assert payload["scenarios"][0]["cost_breakdown"]["grand_total"] == 1240.0
+    assert payload["scenarios"][1]["cost_breakdown"]["grand_total"] == 1680.0
+    # Dates serialize as ISO strings for the frontend.
+    assert payload["scenarios"][0]["start_date"] == "2026-09-04"
+
+
+@pytest.mark.asyncio
+async def test_generate_scenarios_rejects_single_scenario(agent_deps):
+    from app.agent.agent import generate_scenarios
+    from pydantic_ai import RunContext
+
+    ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
+
+    payload = await generate_scenarios(
+        ctx, "Santorini", [_make_scenario("Only one", 300.0, 700.0, 1000.0)]
+    )
+
+    # A lone scenario is not a comparison: nothing renders and the agent is told
+    # to re-call with 2-3.
+    assert payload["scenarios"] == []
+    assert "error" in payload
+    assert "2-3" in payload["error"]
 

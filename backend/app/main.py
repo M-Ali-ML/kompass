@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.adapters.mcp_flight_service import flight_service
 from app.api.routes import router as api_router
 from app.db import init_db
+from app.telemetry import flush_telemetry, init_telemetry
 
 logger = logging.getLogger("kompass.main")
 
@@ -15,8 +16,9 @@ logging.getLogger("kompass.agent").setLevel(logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure the persistence schema exists and the flights MCP client
-    # subprocess is connected.
+    # Startup: enable Langfuse tracing, ensure the persistence schema exists,
+    # and connect the flights MCP client subprocess.
+    init_telemetry()
     await init_db()
     try:
         await flight_service.start()
@@ -25,8 +27,10 @@ async def lifespan(app: FastAPI):
         # should not prevent the API from serving.
         logger.error(f"Flights MCP client failed to start: {e}")
     yield
-    # Shutdown: tear down the flights MCP client subprocess.
+    # Shutdown: tear down the flights MCP client subprocess and flush any
+    # buffered telemetry spans.
     await flight_service.stop()
+    flush_telemetry()
 
 app = FastAPI(title="Kompass Backend API", lifespan=lifespan)
 
