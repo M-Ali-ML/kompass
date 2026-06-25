@@ -2,11 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Plus, MapPin, Trash2, Loader2 } from "lucide-react";
-
-const COPILOTKIT_ENDPOINT =
-  process.env.NEXT_PUBLIC_COPILOTKIT_ENDPOINT || "http://localhost:8000/api/copilotkit";
-// Derive the API origin from the CopilotKit endpoint (strip the trailing path).
-const API_BASE = COPILOTKIT_ENDPOINT.replace(/\/api\/copilotkit\/?$/, "");
+import { listTrips, deleteTrip } from "../lib/trips-api";
 
 export function TripSidebar({ activeThreadId, onNewTrip, onSelectTrip, reloadKey }) {
   const [trips, setTrips] = useState([]);
@@ -14,9 +10,7 @@ export function TripSidebar({ activeThreadId, onNewTrip, onSelectTrip, reloadKey
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/trips`);
-      const data = await res.json();
-      setTrips(Array.isArray(data.trips) ? data.trips : []);
+      setTrips(await listTrips());
     } catch (err) {
       console.error("Failed to load trips", err);
     } finally {
@@ -33,7 +27,7 @@ export function TripSidebar({ activeThreadId, onNewTrip, onSelectTrip, reloadKey
   const handleDelete = async (e, id) => {
     e.stopPropagation();
     try {
-      await fetch(`${API_BASE}/api/trips/${id}`, { method: "DELETE" });
+      await deleteTrip(id);
     } catch (err) {
       console.error("Failed to delete trip", err);
     }

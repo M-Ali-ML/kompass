@@ -2,9 +2,7 @@
 
 import { CopilotKit } from "@copilotkit/react-core/v2";
 import { HttpAgent } from "@copilotkit/react-core/v2";
-
-const COPILOTKIT_ENDPOINT =
-  process.env.NEXT_PUBLIC_COPILOTKIT_ENDPOINT || "http://localhost:8000/api/copilotkit";
+import { COPILOTKIT_ENDPOINT } from "./lib/config";
 
 const agentInstance = new HttpAgent({ url: COPILOTKIT_ENDPOINT });
 
