@@ -2,10 +2,12 @@ import os
 from dataclasses import dataclass, field
 
 from app.adapters.file_prompt_service import FilePromptService
+from app.adapters.mcp_flight_service import flight_service
 from app.adapters.sqlite_trip_repository import SqliteTripRepository
 from app.adapters.sqlite_user_profile_repository import SqliteUserProfileRepository
 from app.db import SessionLocal
 from app.domain.user_preferences import UserPreferences
+from app.ports.flight_service import FlightServicePort
 from app.ports.prompt_service import PromptServicePort
 from app.ports.trip_repository import TripRepository
 from app.ports.user_profile_repository import UserProfileRepository
@@ -18,6 +20,7 @@ class AgentDependencies:
     user_preferences: UserPreferences = field(default_factory=UserPreferences)
     trip_repository: TripRepository | None = None
     profile_repository: UserProfileRepository | None = None
+    flight_service: FlightServicePort | None = None
     trip_id: str | None = None
 
 
@@ -34,5 +37,6 @@ def get_agent_dependencies(
         user_preferences=user_preferences or UserPreferences(),
         trip_repository=SqliteTripRepository(SessionLocal),
         profile_repository=SqliteUserProfileRepository(SessionLocal),
+        flight_service=flight_service,
         trip_id=trip_id,
     )

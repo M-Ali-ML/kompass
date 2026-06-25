@@ -52,6 +52,8 @@ def extract_preferences_from_history(messages) -> UserPreferences:
                         prefs.hotel_class = args_dict['hotel_class']
                     if 'vibe_tags' in args_dict:
                         prefs.vibe_tags = args_dict['vibe_tags']
+                    if 'currency' in args_dict and args_dict['currency']:
+                        prefs.currency = args_dict['currency']
     return prefs
 
 

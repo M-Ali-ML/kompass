@@ -18,6 +18,10 @@ class UserPreferences(BaseModel):
         default_factory=list, 
         description="Vibe descriptors (e.g., ['adventure', 'foodie', 'relaxation', 'history'])."
     )
+    currency: str = Field(
+        default="EUR",
+        description="ISO 4217 currency code used for all prices shown to the traveler (defaults to EUR).",
+    )
 
     def merged_with(self, override: "UserPreferences") -> "UserPreferences":
         """Return a new UserPreferences where non-default fields of ``override`` win.
@@ -34,4 +38,9 @@ class UserPreferences(BaseModel):
             merged.hotel_class = override.hotel_class
         if override.vibe_tags:
             merged.vibe_tags = list(override.vibe_tags)
+        # Currency always carries a value ("EUR" default). Only let the override
+        # win when it names a non-default currency, so a stored profile currency
+        # isn't clobbered by an unspecified conversation default.
+        if override.currency and override.currency != "EUR":
+            merged.currency = override.currency
         return merged

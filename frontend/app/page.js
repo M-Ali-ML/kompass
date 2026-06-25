@@ -3,9 +3,47 @@
 import { useCallback, useEffect, useState } from "react";
 import { CopilotChat } from "@copilotkit/react-core/v2";
 import { useRenderTool, useAgent } from "@copilotkit/react-core/v2";
-import { Compass, Loader2, CheckCircle2 } from "lucide-react";
+import { Compass, Loader2, CheckCircle2, Plane, CalendarSearch } from "lucide-react";
 import { z } from "zod";
 import { TripSidebar } from "./trip-sidebar";
+
+const formatPrice = (amount, currency) => {
+  if (amount == null) return "";
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "EUR",
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${Math.round(amount)} ${currency || "EUR"}`;
+  }
+};
+
+const formatClock = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+// Tool results may arrive as an object or a JSON string depending on transport.
+const parseResult = (result) => {
+  if (!result) return null;
+  if (typeof result === "string") {
+    try {
+      return JSON.parse(result);
+    } catch {
+      return null;
+    }
+  }
+  return result;
+};
 
 const COPILOTKIT_ENDPOINT =
   process.env.NEXT_PUBLIC_COPILOTKIT_ENDPOINT || "http://localhost:8000/api/copilotkit";
@@ -79,6 +117,7 @@ export default function Home() {
       preferred_transit_modes: z.array(z.string()).optional(),
       hotel_class: z.string().nullable().optional(),
       vibe_tags: z.array(z.string()).optional(),
+      currency: z.string().optional(),
     }),
     render: ({ status, parameters }) => {
       const isComplete = status === "complete";
@@ -86,11 +125,13 @@ export default function Home() {
 
       if (!prefs) return null;
 
+      const showCurrency = prefs.currency && prefs.currency !== "EUR";
       const hasPrefs = 
         prefs.direct_flights_only ||
         (prefs.preferred_transit_modes && prefs.preferred_transit_modes.length > 0) ||
         prefs.hotel_class ||
-        (prefs.vibe_tags && prefs.vibe_tags.length > 0);
+        (prefs.vibe_tags && prefs.vibe_tags.length > 0) ||
+        showCurrency;
 
       if (!hasPrefs) return null;
 
@@ -127,7 +168,145 @@ export default function Home() {
                 ✨ {vibe}
               </span>
             ))}
+            {showCurrency && (
+              <span className="px-2.5 py-1 bg-green-50 text-green-700 border border-green-100 rounded-full text-xs font-semibold">
+                💱 Prices in {prefs.currency}
+              </span>
+            )}
           </div>
+        </div>
+      );
+    },
+  });
+
+  // Generative UI — cheapest travel dates returned by find_cheapest_dates
+  useRenderTool({
+    name: "find_cheapest_dates",
+    parameters: z.object({
+      origin: z.string().optional(),
+      destination: z.string().optional(),
+      month: z.string().optional(),
+      duration_days: z.number().nullable().optional(),
+    }),
+    render: ({ status, parameters, result }) => {
+      const route = `${parameters?.origin || "?"} → ${parameters?.destination || "?"}`;
+      if (status !== "complete") {
+        return (
+          <div className="p-4 my-2.5 rounded-2xl bg-surface border border-pink-100 pink-shadow max-w-md animate-pulse">
+            <div className="flex items-center gap-2">
+              <CalendarSearch className="w-4 h-4 text-primary" />
+              <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                Finding cheapest dates {route} {parameters?.month ? `· ${parameters.month}` : ""}
+              </span>
+            </div>
+          </div>
+        );
+      }
+      const data = parseResult(result);
+      const options = (data?.options || []).slice(0, 6);
+      if (options.length === 0) return null;
+      const currency = data?.currency || "EUR";
+      return (
+        <div className="p-4 my-2.5 rounded-2xl bg-surface border border-pink-100 bouncy-hover pink-shadow max-w-md">
+          <div className="flex items-center gap-2 mb-3">
+            <CalendarSearch className="w-4 h-4 text-primary" />
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">
+              Cheapest dates · {route}
+            </span>
+            {data?.estimated && (
+              <span
+                title="Live prices were unavailable, so these are estimates."
+                className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-full text-[11px] font-semibold"
+              >
+                ≈ Estimated
+              </span>
+            )}
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {options.map((o, i) => (
+              <li
+                key={i}
+                className="flex items-center justify-between px-3 py-2 rounded-xl bg-pink-50/60 border border-pink-100"
+              >
+                <span className="text-sm font-medium text-foreground">
+                  {o.departure_date}
+                  {o.return_date ? ` – ${o.return_date}` : ""}
+                </span>
+                <span className="text-sm font-bold text-primary">
+                  {formatPrice(o.price, o.currency || currency)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    },
+  });
+
+  // Generative UI — flight options returned by search_flights
+  useRenderTool({
+    name: "search_flights",
+    parameters: z.object({
+      origin: z.string().optional(),
+      destination: z.string().optional(),
+      departure_date: z.string().optional(),
+      passengers: z.number().optional(),
+      max_stops: z.number().nullable().optional(),
+      preferred_time: z.string().nullable().optional(),
+    }),
+    render: ({ status, parameters, result }) => {
+      const route = `${parameters?.origin || "?"} → ${parameters?.destination || "?"}`;
+      if (status !== "complete") {
+        return (
+          <div className="p-4 my-2.5 rounded-2xl bg-surface border border-pink-100 pink-shadow max-w-md animate-pulse">
+            <div className="flex items-center gap-2">
+              <Plane className="w-4 h-4 text-primary" />
+              <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                Searching flights {route} {parameters?.departure_date ? `· ${parameters.departure_date}` : ""}
+              </span>
+            </div>
+          </div>
+        );
+      }
+      const data = parseResult(result);
+      const options = (data?.options || []).slice(0, 5);
+      if (options.length === 0) return null;
+      const currency = data?.currency || "EUR";
+      return (
+        <div className="p-4 my-2.5 rounded-2xl bg-surface border border-pink-100 bouncy-hover pink-shadow max-w-md">
+          <div className="flex items-center gap-2 mb-3">
+            <Plane className="w-4 h-4 text-primary" />
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">
+              Flights · {route}
+            </span>
+            {data?.estimated && (
+              <span
+                title="Live prices were unavailable, so these are estimates."
+                className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-full text-[11px] font-semibold"
+              >
+                ≈ Estimated
+              </span>
+            )}
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {options.map((o, i) => (
+              <li
+                key={i}
+                className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-pink-50/60 border border-pink-100"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-foreground truncate">{o.airline}</div>
+                  <div className="text-xs text-muted">
+                    {formatClock(o.departure_time)} ·{" "}
+                    {o.stops === 0 ? "Direct" : `${o.stops} stop${o.stops > 1 ? "s" : ""}`}
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-primary shrink-0">
+                  {formatPrice(o.price, o.currency || currency)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       );
     },
