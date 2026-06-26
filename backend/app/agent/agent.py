@@ -177,6 +177,56 @@ async def search_flights(
 
 
 @kompass_agent.tool
+async def search_accommodations(
+    ctx: RunContext[AgentDependencies],
+    destination: str,
+    check_in_date: str,
+    check_out_date: str,
+    guests: int = 2,
+    max_price: int | None = None,
+    min_rating: float | None = None,
+) -> dict:
+    """Search live lodging options (hotels, rentals) for a stay via Google Hotels.
+
+    Use this once a destination and stay dates are known to attach real nightly
+    and total rates, ratings, and amenities to a scenario's accommodation. Feed
+    the chosen option's `total_rate` into `cost_breakdown.accommodation`. Prices
+    reflect the traveler's preferred currency.
+
+    Args:
+        destination: City / area to stay in (e.g. 'Santorini', 'Athens city center').
+        check_in_date: Check-in date in 'YYYY-MM-DD' format.
+        check_out_date: Check-out date in 'YYYY-MM-DD' format.
+        guests: Number of adult guests.
+        max_price: Optional maximum nightly rate (in the traveler's currency) to cap results.
+        min_rating: Optional minimum guest rating (e.g. 4.0) to filter results.
+    """
+    if ctx.deps.accommodation_service is None:
+        return {"error": "Accommodation search is unavailable.", "options": []}
+
+    currency = ctx.deps.user_preferences.currency
+    logger.info(
+        f"search_accommodations {destination!r} {check_in_date}..{check_out_date} "
+        f"guests={guests} max_price={max_price} min_rating={min_rating} currency={currency}"
+    )
+    options = await ctx.deps.accommodation_service.search_accommodations(
+        destination,
+        check_in_date=check_in_date,
+        check_out_date=check_out_date,
+        guests=guests,
+        max_price=max_price,
+        min_rating=min_rating,
+        currency=currency,
+    )
+    estimated = bool(options) and all(o.estimated for o in options)
+    return {
+        "currency": currency,
+        "estimated": estimated,
+        "options": [o.model_dump() for o in options],
+    }
+
+
+@kompass_agent.tool
 async def search_web(ctx: RunContext[AgentDependencies], query: str) -> str:
     """Search the live web (Google) for current, real-world travel information.
 

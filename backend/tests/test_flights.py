@@ -69,6 +69,42 @@ def test_synthetic_estimators_are_gone():
     assert not hasattr(flights_server, "_synthetic_cheapest_dates")
 
 
+# --- Mock mode (MCP_MODE=mock → no network, flagged estimated) -----------------
+
+def test_search_flights_mock_mode_no_network(monkeypatch):
+    monkeypatch.setenv("MCP_MODE", "mock")
+
+    def boom(_params):
+        raise AssertionError("SerpApi must not be called in mock mode")
+
+    monkeypatch.setattr(flights_server, "_serpapi_search", boom)
+    monkeypatch.setattr(flights_server, "_api_key", lambda: None)
+
+    result = flights_server.search_flights("BER", "ATH", "2026-09-10", max_stops=0, currency="EUR")
+    assert result["available"] is True
+    assert result["estimated"] is True
+    assert len(result["options"]) >= 1
+    assert all(o["stops"] <= 0 for o in result["options"])
+
+
+def test_find_cheapest_dates_mock_mode_no_network(monkeypatch):
+    monkeypatch.setenv("MCP_MODE", "mock")
+
+    def boom(_params):
+        raise AssertionError("SerpApi must not be called in mock mode")
+
+    monkeypatch.setattr(flights_server, "_serpapi_search", boom)
+    monkeypatch.setattr(flights_server, "_api_key", lambda: None)
+
+    result = flights_server.find_cheapest_dates(
+        "BER", "ATH", "2026-09-01", "2026-09-30", duration_days=7, currency="USD"
+    )
+    assert result["available"] is True
+    assert result["estimated"] is True
+    assert result["options"][0]["return_date"] is not None
+    assert result["currency"] == "USD"
+
+
 # --- SerpApi parsing (mocked HTTP) --------------------------------------------
 
 _SERPAPI_FLIGHTS_FIXTURE = {

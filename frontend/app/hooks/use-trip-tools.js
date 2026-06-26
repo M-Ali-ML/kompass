@@ -3,6 +3,11 @@ import { PreferencesCard, preferencesParameters } from "../components/tool-cards
 import { CheapestDatesCard, cheapestDatesParameters } from "../components/tool-cards/cheapest-dates-card";
 import { FlightsCard, flightsParameters } from "../components/tool-cards/flights-card";
 import {
+  AccommodationsCard,
+  accommodationsParameters,
+} from "../components/tool-cards/accommodations-card";
+import { ResearchCard, researchParameters } from "../components/tool-cards/research-card";
+import {
   ScenarioComparisonCard,
   scenarioComparisonParameters,
 } from "../components/tool-cards/scenario-comparison-card";
@@ -27,6 +32,18 @@ export function useTripTools() {
     name: "search_flights",
     parameters: flightsParameters,
     render: (props) => <FlightsCard {...props} />,
+  });
+
+  useRenderTool({
+    name: "search_accommodations",
+    parameters: accommodationsParameters,
+    render: (props) => <AccommodationsCard {...props} />,
+  });
+
+  useRenderTool({
+    name: "search_web",
+    parameters: researchParameters,
+    render: (props) => <ResearchCard {...props} />,
   });
 
   useRenderTool({

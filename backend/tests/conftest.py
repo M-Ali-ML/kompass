@@ -17,3 +17,15 @@ def _stub_grounded_research(monkeypatch):
     import app.agent.agent as agent_mod
 
     monkeypatch.setattr(agent_mod, "run_research", _fast_research, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _default_live_mcp_mode(monkeypatch):
+    """Default the data MCP servers to live mode for tests.
+
+    The repo `.env` may set ``MCP_MODE=mock`` for local dev (exported to
+    os.environ at import via app.config). Most tests exercise the live SerpApi
+    code paths, so force ``live`` by default; the dedicated mock-mode tests
+    opt in with their own ``monkeypatch.setenv("MCP_MODE", "mock")``.
+    """
+    monkeypatch.setenv("MCP_MODE", "live")

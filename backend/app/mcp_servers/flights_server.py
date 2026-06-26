@@ -26,6 +26,14 @@ from datetime import date, datetime, timedelta
 import httpx
 from mcp.server.fastmcp import FastMCP
 
+# Dev helpers (mock mode + call logging). Imported as a package module in tests /
+# the parent app, or as a top-level module when this file is launched directly
+# as a subprocess (only its own directory is then on sys.path).
+try:
+    from app.mcp_servers._dev import log_call, mock_mode
+except ImportError:  # pragma: no cover - standalone subprocess import path
+    from _dev import log_call, mock_mode
+
 logger = logging.getLogger("kompass.flights_mcp")
 
 mcp = FastMCP("FlightsServer")
@@ -152,6 +160,57 @@ def _all_items(data: dict) -> list[dict]:
     return (data.get("best_flights") or []) + (data.get("other_flights") or [])
 
 
+# --- Mock data (MCP_MODE=mock) ------------------------------------------------
+
+def _mock_flights(origin: str, destination: str, departure_date: str, currency: str) -> list[dict]:
+    """Deterministic fake flight options (no network). Flagged estimated=true."""
+    o, d = origin.strip().upper(), destination.strip().upper()
+    carriers = [("Aegean Airlines", 0, 195), ("Lufthansa", 1, 240), ("Ryanair", 1, 265)]
+    options = []
+    for i, (airline, stops, dur) in enumerate(carriers):
+        dep_h = 7 + i * 3
+        options.append(
+            {
+                "origin": o,
+                "destination": d,
+                "departure_time": f"{departure_date}T{dep_h:02d}:00:00",
+                "arrival_time": f"{departure_date}T{(dep_h + dur // 60) % 24:02d}:{dur % 60:02d}:00",
+                "duration_minutes": dur,
+                "stops": stops,
+                "airline": airline,
+                "price": round(120.0 + i * 55, 2),
+                "currency": currency,
+                "estimated": True,
+            }
+        )
+    return options
+
+
+def _mock_cheapest_dates(
+    start: date, end: date, duration_days: int | None, currency: str
+) -> list[dict]:
+    """Deterministic fake cheapest-date windows (no network). Flagged estimated=true."""
+    span = max((end - start).days, 1)
+    step = max(span // 4, 1)
+    options = []
+    cursor = start
+    i = 0
+    while cursor <= end and i < 4:
+        ret = cursor + timedelta(days=duration_days) if duration_days else None
+        options.append(
+            {
+                "departure_date": cursor.isoformat(),
+                "return_date": ret.isoformat() if ret else None,
+                "price": round(180.0 + i * 35, 2),
+                "currency": currency,
+                "estimated": True,
+            }
+        )
+        cursor += timedelta(days=step)
+        i += 1
+    return options
+
+
 # --- MCP tools ----------------------------------------------------------------
 
 @mcp.tool()
@@ -179,9 +238,29 @@ def search_flights(
         dict with keys: options (list), currency (str), estimated (bool),
         available (bool). On any failure, available=false with empty options.
     """
+    request = {
+        "origin": origin,
+        "destination": destination,
+        "departure_date": departure_date,
+        "passengers": passengers,
+        "max_stops": max_stops,
+        "preferred_time": preferred_time,
+        "currency": currency,
+    }
+
+    if mock_mode():
+        options = _mock_flights(origin, destination, departure_date, currency)
+        if max_stops is not None:
+            options = [o for o in options if o["stops"] <= max_stops] or options[:1]
+        result = {"options": options, "currency": currency, "estimated": True, "available": True}
+        log_call(logger, "flights", "search_flights", request, result)
+        return result
+
     if not _api_key():
         logger.warning("SERPAPI_API_KEY not set; search_flights deferring to search_web.")
-        return _unavailable(currency)
+        result = _unavailable(currency)
+        log_call(logger, "flights", "search_flights", request, result)
+        return result
 
     params = {
         "departure_id": origin.strip().upper(),
@@ -201,17 +280,22 @@ def search_flights(
         data = _serpapi_search(params)
     except Exception as e:  # noqa: BLE001 - degrade gracefully to search_web
         logger.warning(f"search_flights SerpApi call failed ({e}); deferring to search_web.")
-        return _unavailable(currency)
+        result = _unavailable(currency)
+        log_call(logger, "flights", "search_flights", request, result)
+        return result
 
     options = [o for o in (_parse_flight_item(it, currency) for it in _all_items(data)) if o]
     options.sort(key=lambda o: o["price"] if o["price"] > 0 else float("inf"))
     options = options[:_TOP_N]
     if not options:
         logger.info(f"search_flights {origin}->{destination} {departure_date}: no results.")
-        return _unavailable(
+        result = _unavailable(
             currency, "No flights returned for this route/date. Use search_web for prices."
         )
-    return {"options": options, "currency": currency, "estimated": False, "available": True}
+    else:
+        result = {"options": options, "currency": currency, "estimated": False, "available": True}
+    log_call(logger, "flights", "search_flights", request, result)
+    return result
 
 
 @mcp.tool()
@@ -241,14 +325,31 @@ def find_cheapest_dates(
         dict with keys: options (list, cheapest first), currency (str),
         estimated (bool), available (bool).
     """
-    if not _api_key():
-        logger.warning("SERPAPI_API_KEY not set; find_cheapest_dates deferring to search_web.")
-        return _unavailable(currency)
+    request = {
+        "origin": origin,
+        "destination": destination,
+        "date_from": date_from,
+        "date_to": date_to,
+        "duration_days": duration_days,
+        "currency": currency,
+    }
 
     start = _safe_date(date_from) or date.today()
     end = _safe_date(date_to) or (start + timedelta(days=30))
     if end < start:
         end = start + timedelta(days=30)
+
+    if mock_mode():
+        options = _mock_cheapest_dates(start, end, duration_days, currency)
+        result = {"options": options, "currency": currency, "estimated": True, "available": True}
+        log_call(logger, "flights", "find_cheapest_dates", request, result)
+        return result
+
+    if not _api_key():
+        logger.warning("SERPAPI_API_KEY not set; find_cheapest_dates deferring to search_web.")
+        result = _unavailable(currency)
+        log_call(logger, "flights", "find_cheapest_dates", request, result)
+        return result
 
     span = (end - start).days
     step = max(span // max(_DATE_SAMPLES - 1, 1), 1) if span else 1
@@ -302,11 +403,19 @@ def find_cheapest_dates(
         )
 
     if not options:
-        return _unavailable(
+        result = _unavailable(
             currency, "No date prices returned. Use search_web for cheapest dates."
         )
-    options.sort(key=lambda o: o["price"])
-    return {"options": options[:10], "currency": currency, "estimated": False, "available": True}
+    else:
+        options.sort(key=lambda o: o["price"])
+        result = {
+            "options": options[:10],
+            "currency": currency,
+            "estimated": False,
+            "available": True,
+        }
+    log_call(logger, "flights", "find_cheapest_dates", request, result)
+    return result
 
 
 if __name__ == "__main__":

@@ -521,7 +521,20 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
                       className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-surface border border-pink-100 purple-shadow"
                     >
                       <div className="min-w-0">
-                        <div className="text-sm font-bold text-foreground truncate">{s.name}</div>
+                        {s.booking_link ? (
+                          <a
+                            href={s.booking_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="View this property"
+                            className="group inline-flex items-center gap-1 text-sm font-bold text-foreground hover:text-primary"
+                          >
+                            <span className="truncate">{s.name}</span>
+                            <ExternalLink className="w-3 h-3 text-secondary opacity-60 group-hover:opacity-100 shrink-0" />
+                          </a>
+                        ) : (
+                          <div className="text-sm font-bold text-foreground truncate">{s.name}</div>
+                        )}
                         <div className="flex items-center gap-1 text-xs text-foreground/70">
                           <MapPin className="w-3 h-3 text-secondary" /> {s.location}
                           {n ? ` · ${n} nights` : ""}

@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.adapters.mcp_accommodation_service import accommodation_service
 from app.adapters.mcp_flight_service import flight_service
 from app.api.routes import router as api_router
 from app.db import init_db
@@ -26,10 +27,17 @@ async def lifespan(app: FastAPI):
         # The agent's flight tools degrade gracefully, so a failed MCP startup
         # should not prevent the API from serving.
         logger.error(f"Flights MCP client failed to start: {e}")
+    try:
+        await accommodation_service.start()
+    except Exception as e:
+        # Accommodation tools also degrade gracefully (fall back to search_web),
+        # so a failed MCP startup should not prevent the API from serving.
+        logger.error(f"Accommodations MCP client failed to start: {e}")
     yield
-    # Shutdown: tear down the flights MCP client subprocess and flush any
-    # buffered telemetry spans.
+    # Shutdown: tear down the MCP client subprocesses and flush any buffered
+    # telemetry spans.
     await flight_service.stop()
+    await accommodation_service.stop()
     flush_telemetry()
 
 app = FastAPI(title="Kompass Backend API", lifespan=lifespan)

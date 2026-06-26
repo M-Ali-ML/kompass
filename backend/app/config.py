@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     # Flights provider (SerpApi Google Flights). Optional: when unset, the
     # flight tools degrade to the grounded search_web tool.
     serpapi_api_key: Optional[str] = Field(None, alias="SERPAPI_API_KEY")
+
+    # Data MCP mode. "live" calls SerpApi (costs money); "mock" returns
+    # deterministic, clearly-flagged fake data with NO network calls / no key
+    # (handy for dev so you don't burn the shared SerpApi quota).
+    mcp_mode: str = Field("live", alias="MCP_MODE")
+    # Optional path; when set, every MCP tool call's request/response is
+    # appended as a JSON line for inspection.
+    mcp_log_file: Optional[str] = Field(None, alias="MCP_LOG_FILE")
     
     # Langfuse telemetry configuration
     langfuse_secret_key: Optional[str] = Field(None, alias="LANGFUSE_SECRET_KEY")
@@ -44,8 +52,13 @@ settings = Settings()
 if settings.google_api_key:
     os.environ["GOOGLE_API_KEY"] = settings.google_api_key
 if settings.serpapi_api_key:
-    # Exported so the Flights MCP subprocess (inherits os.environ) can read it.
+    # Exported so the data MCP subprocesses (inherit os.environ) can read it.
     os.environ["SERPAPI_API_KEY"] = settings.serpapi_api_key
+# Exported so the data MCP subprocesses pick up the mode / log file.
+if settings.mcp_mode:
+    os.environ["MCP_MODE"] = settings.mcp_mode
+if settings.mcp_log_file:
+    os.environ["MCP_LOG_FILE"] = settings.mcp_log_file
 if settings.langfuse_secret_key:
     os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
 if settings.langfuse_public_key:

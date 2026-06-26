@@ -39,6 +39,13 @@ class Accommodation(BaseModel):
         description="ISO 8601 timezone-aware check-out timestamp (e.g. YYYY-MM-DDTHH:MM:SSZ)."
     )
     cost: float = Field(..., description="Total cost of the stay for this accommodation.", ge=0.0)
+    booking_link: str | None = Field(
+        None,
+        description=(
+            "URL to the property's details / booking page, copied from the chosen "
+            "search_accommodations option's `link` when available."
+        ),
+    )
 
 class PlanItem(BaseModel):
     """A single scheduled activity within a day."""
