@@ -151,12 +151,11 @@ function StressGauge({ score }) {
   );
 }
 
-// Icon for a transit leg. Flights use a downward-tilted plane (descending) that
-// reads better in the vertical timeline than the upward emoji; other modes keep
-// their glyph.
+// Icon for a transit leg. Flights use a slightly upward-tilted plane (ascending)
+// that reads as travel/departure; other modes keep their glyph.
 function LegIcon({ mode, className = "" }) {
   if (mode === "flight") {
-    return <Plane className={`w-4 h-4 text-primary rotate-90 ${className}`} />;
+    return <Plane className={`w-4 h-4 text-primary ${className}`} />;
   }
   return (
     <span className={`text-base leading-none ${className}`}>
