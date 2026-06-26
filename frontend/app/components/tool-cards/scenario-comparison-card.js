@@ -40,6 +40,19 @@ const MODE_GLYPH = {
 
 const STRESS_LABEL = { 1: "Relaxed", 2: "Easy", 3: "Moderate", 4: "Busy", 5: "Intense" };
 
+// Transit fares are priced per person, so with a group we show the per-person
+// unit price alongside the count (e.g. "2× €49"). Stays are a whole-property
+// total, so they stay as a single figure.
+const PER_PERSON_MODES = new Set(["flight", "train", "bus", "ferry"]);
+
+const formatLegPrice = (leg, travelers, currency) => {
+  const perPerson =
+    travelers > 1 && PER_PERSON_MODES.has(leg.mode) && leg.cost > 0;
+  return perPerson
+    ? `${travelers}× ${formatPrice(leg.cost / travelers, currency)}`
+    : formatPrice(leg.cost, currency);
+};
+
 // Lower stress is better, so the gauge runs calm-green → busy-rose.
 const stressTone = (score) =>
   score <= 2
@@ -335,6 +348,7 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
   const tone = stressTone(scenario.stress_score);
   const total = cb.grand_total || 0;
   const nights = tripNights(scenario.start_date, scenario.end_date);
+  const travelers = Math.max(1, Math.round(scenario.travelers || 1));
 
   // Split the legs into outbound/return journeys so travel time reflects BOTH
   // directions rather than a single conflated number.
@@ -362,6 +376,7 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
                   {fmtDay(scenario.start_date)} – {fmtDay(scenario.end_date)}
                   {fmtYear(scenario.end_date) ? `, ${fmtYear(scenario.end_date)}` : ""}
                   {nights ? ` · ${nights} nights` : ""}
+                  {travelers > 1 ? ` · ${travelers} travelers` : ""}
                 </span>
               </div>
             </div>
@@ -493,7 +508,7 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
                             </span>
                           )}
                           <span className="text-xs font-semibold text-foreground/70">
-                            {formatPrice(leg.cost, currency)}
+                            {formatLegPrice(leg, travelers, currency)}
                           </span>
                         </div>
                         <div className="text-xs text-foreground/70 mt-0.5">

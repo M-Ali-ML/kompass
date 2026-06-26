@@ -64,6 +64,16 @@ class Scenario(BaseModel):
         ...,
         description="Trip end date in ISO 8601 (e.g. 2026-09-11).",
     )
+    travelers: int = Field(
+        1,
+        description=(
+            "Number of travelers this scenario is priced for — set it to the same "
+            "`passengers`/`guests` count used when searching flights and lodging. "
+            "Transport leg costs and the cost breakdown are TOTALS for this many "
+            "people, so the UI shows per-person fares as (leg cost / travelers)."
+        ),
+        ge=1,
+    )
     itinerary: Itinerary = Field(..., description="The full travel itinerary for this scenario.")
     cost_breakdown: CostBreakdown = Field(
         ...,

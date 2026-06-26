@@ -1,6 +1,6 @@
 # Kompass App: Design & Styling System (Post-Building)
 
-This document tracks the *actual* implemented design and styling of the Kompass application as of Phase 5.
+This document tracks the *actual* implemented design and styling of the Kompass application as of Phase 7.
 
 ---
 
@@ -34,8 +34,11 @@ The application uses the custom **"Candy" Theme** (a bold, fun, energetic "Joyfu
 
 * **Header/Branding:** Done. [app-header.js](file:///Users/aly/repos/kompass/frontend/app/components/app-header.js) displays a pink-shadowed primary button enclosing an animated spinning `Compass` icon, next to "Kompass" title.
 * **Chat Window:** Done. Integrated CopilotKit v2 chat container with travel-specific titles and placeholders.
-* **Trip Sidebar:** Done. [trip-sidebar.js](file:///Users/aly/repos/kompass/frontend/app/components/trip-sidebar.js) lists saved trips and supports New Trip / click-to-resume.
+* **Trip Sidebar:** Done. [trip-sidebar.js](file:///Users/aly/repos/kompass/frontend/app/components/trip-sidebar.js) has two pill tabs — **Trips** (New Trip / click-to-resume / delete) and **Saved** ([saved-list.js](file:///Users/aly/repos/kompass/frontend/app/components/saved-list.js), bookmarked scenarios with destination, date range, a stress dot, and the grand total; click to reopen the detail modal).
 * **Preference Badges Card:** Done. [preferences-card.js](file:///Users/aly/repos/kompass/frontend/app/components/tool-cards/preferences-card.js) renders colorful pill tags for direct flights, hotel class, transit modes, vibe tags, and non-default currency.
 * **Flight & Cheapest-Date Cards:** Done. [flights-card.js](file:///Users/aly/repos/kompass/frontend/app/components/tool-cards/flights-card.js) and [cheapest-dates-card.js](file:///Users/aly/repos/kompass/frontend/app/components/tool-cards/cheapest-dates-card.js) render live results with currency-aware prices and an `≈ approx` badge when data is estimated.
+* **Accommodations Card:** Done (Phase 6). [accommodations-card.js](file:///Users/aly/repos/kompass/frontend/app/components/tool-cards/accommodations-card.js) renders live lodging options with nightly + total rates, ratings, amenities, and booking links.
+* **Research Card:** Done. [research-card.js](file:///Users/aly/repos/kompass/frontend/app/components/tool-cards/research-card.js) renders the grounded `search_web` answer (used for destination knowledge and ground-transport routing) so it shows as its own card.
 * **Travel Scenarios Comparison Cards:** Done (Phase 5). [scenario-comparison-card.js](file:///Users/aly/repos/kompass/frontend/app/components/tool-cards/scenario-comparison-card.js) renders 2-3 side-by-side scenario cards (responsive: row on desktop, stacked on mobile) with: comparison label + date window, hero grand total, Transport/Stay breakdown, a 5-pip stress gauge (calm-green → busy-rose) with a label (Relaxed → Intense), highlight chips, a transport-leg summary line, and a "View details" action. **Best value** (cheapest) and **Lowest stress** badges are derived client-side; a shimmer skeleton shows while the tool streams.
-* **Map Display:** Installed Leaflet, component not yet implemented (Pending in Phase 8).
+* **Scenario Detail Modal:** Done (Phase 5–7). A centered popup (`ScenarioDetailModal`) opened from "View details" or the Saved tab, showing price + stress gauge, cost breakdown bars, stress-factor stat tiles, a per-direction travel timeline (layover/overnight/tight-connection chips, Google Flights / property links), an accommodation list, an expandable **day-by-day itinerary** (`DayRow` with time-blocked schedule items), reasoning, and a **Save this trip** / **Remove from saved** action.
+* **Map Display:** Installed Leaflet + react-leaflet, component not yet implemented (Pending in Phase 8).
