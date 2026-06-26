@@ -38,7 +38,7 @@ export function TripSidebar({ activeThreadId, onNewTrip, onSelectTrip, reloadKey
   };
 
   return (
-    <aside className="flex flex-col w-72 shrink-0 h-full bg-surface border-r border-pink-100 pink-shadow">
+    <aside className="flex flex-col w-full h-full bg-surface border-r border-pink-100 pink-shadow">
       <div className="p-4 border-b border-pink-100">
         <button
           onClick={onNewTrip}

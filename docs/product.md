@@ -5,7 +5,7 @@ This document tracks the actual implementation status of product features outlin
 ---
 
 ## 1. Feature Status Summary
-The application has completed **Phases 1–7**: a multi-turn conversational travel agent (Phase 1–2) with SQLite persistence and a global user profile (Phase 3), live flight data via a flights MCP server plus a grounded web-search sub-agent (Phase 4), side-by-side scenario comparison with stress scoring and a full scenario detail modal incl. day-by-day plans (Phase 5), live accommodation data via an accommodations MCP server (Phase 6), and multi-modal ground transport (train/bus/ferry) via grounded research with realistic connection sequencing (Phase 7). Agent runs are traced to Langfuse. Remaining: an interactive map view (Phase 8).
+The application has completed **Phases 1–8**: a multi-turn conversational travel agent (Phase 1–2) with SQLite persistence and a global user profile (Phase 3), live flight data via a flights MCP server plus a grounded web-search sub-agent (Phase 4), side-by-side scenario comparison with stress scoring and a full scenario detail modal incl. day-by-day plans (Phase 5), live accommodation data via an accommodations MCP server (Phase 6), multi-modal ground transport (train/bus/ferry) via grounded research with realistic connection sequencing (Phase 7), and an interactive Google Map split-panel that visualizes the active scenario's route with mode-colored legs and stop/stay markers (Phase 8). Agent runs are traced to Langfuse.
 
 ---
 

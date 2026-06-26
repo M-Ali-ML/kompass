@@ -23,20 +23,13 @@ import {
 import { z } from "zod";
 import { formatPrice, parseResult, googleFlightsUrl } from "../../lib/format";
 import { saveScenario, deleteSavedScenario } from "../../lib/trips-api";
+import { useMapState, routeFromScenario } from "../map/map-context";
+import { MODE_GLYPH } from "../../lib/transport";
 
 export const scenarioComparisonParameters = z.object({
   destination: z.string().optional(),
   estimated: z.boolean().optional(),
 });
-
-const MODE_GLYPH = {
-  flight: "✈️",
-  train: "🚆",
-  bus: "🚌",
-  ferry: "🚢",
-  car: "🚗",
-  other: "🚐",
-};
 
 const STRESS_LABEL = { 1: "Relaxed", 2: "Easy", 3: "Moderate", 4: "Busy", 5: "Intense" };
 
@@ -292,8 +285,14 @@ const SAVE_LABEL = {
 // "Remove from saved" instead of the save action.
 export function ScenarioDetailModal({ scenario, currency, destination, savedId, onRemoved, onClose }) {
   const { agent } = useAgent();
+  const { setActiveRoute } = useMapState();
   const [saveState, setSaveState] = useState("idle");
   const [removeState, setRemoveState] = useState("idle");
+
+  const handleViewOnMap = () => {
+    setActiveRoute(routeFromScenario(scenario, { destination, currency }));
+    onClose();
+  };
 
   const handleSave = async () => {
     if (saveState === "saving" || saveState === "saved") return;
@@ -661,6 +660,13 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
           )}
           <button
             type="button"
+            onClick={handleViewOnMap}
+            className="hidden lg:inline-flex w-full py-2 rounded-xl border border-pink-200 text-primary text-sm font-semibold items-center justify-center gap-2 bouncy-hover hover:bg-pink-50"
+          >
+            <MapPin className="w-4 h-4" /> View on map
+          </button>
+          <button
+            type="button"
             onClick={onClose}
             className="w-full py-1.5 text-xs font-semibold text-foreground/60 hover:text-foreground"
           >
@@ -675,6 +681,7 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
 
 function ScenarioCard({ scenario, currency, destination, bestValue, lowestStress }) {
   const [detailOpen, setDetailOpen] = useState(false);
+  const { setActiveRoute } = useMapState();
   const cb = scenario.cost_breakdown || {};
   const tone = stressTone(scenario.stress_score);
   const legs = (scenario.itinerary?.legs || []).slice(0, 4);
@@ -784,14 +791,25 @@ function ScenarioCard({ scenario, currency, destination, bestValue, lowestStress
         </div>
       )}
 
-      {/* Footer action */}
-      <button
-        type="button"
-        onClick={() => setDetailOpen(true)}
-        className="mt-3 w-full py-2 rounded-xl border border-pink-200 text-primary text-sm font-semibold bouncy-hover hover:bg-pink-50"
-      >
-        View details
-      </button>
+      {/* Footer actions */}
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setDetailOpen(true)}
+          className="flex-1 py-2 rounded-xl border border-pink-200 text-primary text-sm font-semibold bouncy-hover hover:bg-pink-50"
+        >
+          View details
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveRoute(routeFromScenario(scenario, { destination, currency }))}
+          title="Show this route on the map"
+          aria-label="Show this route on the map"
+          className="hidden lg:inline-flex shrink-0 px-3 py-2 rounded-xl border border-pink-200 text-primary items-center justify-center bouncy-hover hover:bg-pink-50"
+        >
+          <MapPin className="w-4 h-4" />
+        </button>
+      </div>
 
       {detailOpen && (
         <ScenarioDetailModal
@@ -836,6 +854,37 @@ function ComparisonShell({ destination, estimated, spin = false, children }) {
 // Generative UI for generate_scenarios — side-by-side scenario comparison cards.
 export function ScenarioComparisonCard({ status, parameters, result }) {
   const destination = parameters?.destination || "";
+  const { setActiveRoute } = useMapState();
+
+  const data = status === "complete" ? parseResult(result) : null;
+  const scenarios = data?.scenarios || [];
+  const currency = data?.currency || "EUR";
+  const mapDestination = data?.destination || destination;
+
+  // Derive the highlighted options client-side: cheapest = best value,
+  // least stressful = lowest stress.
+  let bestValueIdx = 0;
+  let lowestStressIdx = 0;
+  scenarios.forEach((s, i) => {
+    const total = s.cost_breakdown?.grand_total ?? Infinity;
+    const best = scenarios[bestValueIdx]?.cost_breakdown?.grand_total ?? Infinity;
+    if (total < best) bestValueIdx = i;
+    if ((s.stress_score ?? 99) < (scenarios[lowestStressIdx]?.stress_score ?? 99)) lowestStressIdx = i;
+  });
+
+  // Auto-show the best-value scenario on the map once the comparison resolves.
+  // Keyed by a stable signature so it only fires when the chosen route changes,
+  // not on every re-render (parseResult returns a fresh object each time).
+  const bestScenario = scenarios[bestValueIdx];
+  const bestSig = bestScenario
+    ? `${mapDestination}|${currency}|${bestScenario.label}|${bestScenario.start_date}|${bestScenario.cost_breakdown?.grand_total}`
+    : null;
+  useEffect(() => {
+    if (bestScenario) {
+      setActiveRoute(routeFromScenario(bestScenario, { destination: mapDestination, currency }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bestSig]);
 
   if (status !== "complete") {
     return (
@@ -847,21 +896,7 @@ export function ScenarioComparisonCard({ status, parameters, result }) {
     );
   }
 
-  const data = parseResult(result);
-  const scenarios = data?.scenarios || [];
   if (scenarios.length === 0) return null;
-  const currency = data?.currency || "EUR";
-
-  // Derive the highlighted options client-side: cheapest = best value,
-  // least stressful = lowest stress.
-  let bestValueIdx = 0;
-  let lowestStressIdx = 0;
-  scenarios.forEach((s, i) => {
-    const total = s.cost_breakdown?.grand_total ?? Infinity;
-    const best = scenarios[bestValueIdx].cost_breakdown?.grand_total ?? Infinity;
-    if (total < best) bestValueIdx = i;
-    if ((s.stress_score ?? 99) < (scenarios[lowestStressIdx].stress_score ?? 99)) lowestStressIdx = i;
-  });
 
   return (
     <ComparisonShell destination={data?.destination || destination} estimated={data?.estimated}>
