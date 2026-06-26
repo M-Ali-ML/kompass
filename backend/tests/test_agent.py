@@ -171,6 +171,38 @@ def _make_scenario(label: str, transport: float, accom: float, claimed_total: fl
 
 
 @pytest.mark.asyncio
+async def test_search_ground_transport_builds_query_and_threads_currency(agent_deps, monkeypatch):
+    from app.agent import agent as agent_module
+    from app.agent.agent import search_ground_transport
+    from pydantic_ai import RunContext
+    from app.domain import UserPreferences
+
+    agent_deps.user_preferences = UserPreferences(currency="GBP")
+    ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
+
+    captured = {}
+
+    async def fake_run_research(query: str) -> str:
+        captured["query"] = query
+        return "Blue Star Ferries departs Piraeus ~07:25, arrives Milos ~14:00, ~45 GBP."
+
+    monkeypatch.setattr(agent_module, "run_research", fake_run_research)
+
+    result = await search_ground_transport(
+        ctx, "Piraeus", "Milos", "2026-09-12", modes="ferry"
+    )
+
+    assert "Blue Star Ferries" in result
+    # The query is grounded in the requested route/date, focused on the modes,
+    # and carries the traveler's preferred currency through to the research agent.
+    assert "Piraeus" in captured["query"]
+    assert "Milos" in captured["query"]
+    assert "2026-09-12" in captured["query"]
+    assert "ferry" in captured["query"]
+    assert "GBP" in captured["query"]
+
+
+@pytest.mark.asyncio
 async def test_generate_scenarios_normalizes_totals_and_payload(agent_deps):
     from app.agent.agent import generate_scenarios
     from pydantic_ai import RunContext

@@ -19,32 +19,23 @@ reliably provide from every network.
 """
 
 import logging
+import os
 
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import WebSearch
 
+from app.adapters.file_prompt_service import FilePromptService
 from app.config import settings
 
 logger = logging.getLogger("kompass.research")
 
-RESEARCH_INSTRUCTIONS = """\
-You are Kompass's travel research assistant. Use web search to answer the \
-query with current, real-world facts.
-
-Guidelines:
-- Prefer concrete numbers: price ranges, typical durations, number of stops, \
-  nightly hotel rates, ratings. Always say prices are approximate and note the \
-  rough date/source they reflect.
-- For flights: give a realistic price range and example carriers/routes for \
-  the requested dates; mention if it is direct or requires a connection.
-- For accommodation: list a few concrete options (name, area, approx nightly \
-  price, rating) when asked.
-- Keep the answer compact and factual — a few short bullets, not an essay. \
-  This text is consumed by another agent, not shown verbatim to the user.
-- Report prices in the currency requested in the query (default EUR).
-- If the web results are thin or conflicting, say so plainly rather than \
-  inventing precise figures.
-"""
+# Resolve the research prompt through the same PromptServicePort abstraction the
+# main agent uses (see app/agent/dependency.py). Keeping the text in
+# prompts/research_prompt.md — rather than inline — means a future swap to a
+# Langfuse-backed prompt registry is a single change at the service layer.
+_PROMPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts")
+_prompt_service: FilePromptService = FilePromptService(_PROMPTS_DIR)
+RESEARCH_INSTRUCTIONS = _prompt_service.get_prompt("research_prompt")
 
 # Single-capability agent: native web search only, plain-text output, no
 # function tools and no structured output (see module docstring).

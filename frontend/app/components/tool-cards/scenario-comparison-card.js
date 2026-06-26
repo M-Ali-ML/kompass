@@ -87,6 +87,23 @@ const layoverMinutes = (a, b) => {
   return Number.isFinite(d) && d > 0 ? Math.round(d) : 0;
 };
 
+// A connection is "tight" when the buffer is too short to comfortably catch the
+// next leg. Flights need more margin (deplaning, baggage, security) than ground
+// transit, mirroring the backend stress thresholds (<1.5h flight / <30m ground).
+const isTightConnection = (mins, nextLeg) => {
+  if (!mins || mins <= 0) return false;
+  const threshold = nextLeg?.mode === "flight" ? 90 : 30;
+  return mins < threshold;
+};
+
+// Overnight when the leg crosses a local calendar day (e.g. a night ferry/train).
+const isOvernightLeg = (leg) => {
+  const dep = new Date(leg.departure_time);
+  const arr = new Date(leg.arrival_time);
+  if (Number.isNaN(dep.getTime()) || Number.isNaN(arr.getTime())) return false;
+  return dep.toDateString() !== arr.toDateString();
+};
+
 // A gap longer than this between two legs is the trip stay itself (e.g. the
 // nights spent at the destination between the outbound and return flights), not
 // a connecting-flight layover. Used to avoid mislabeling a 14-day stay as a
@@ -449,6 +466,8 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
                       : null;
                   const carrier = cleanCarrier(leg.carrier);
                   const isStay = layover > TRIP_GAP_MINUTES;
+                  const tight = !isStay && isTightConnection(layover, legs[i + 1]);
+                  const overnight = isOvernightLeg(leg);
                   return (
                     <li key={i} className="flex gap-3">
                       <div className="flex flex-col items-center">
@@ -484,14 +503,33 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
                         </div>
                         {carrier && (
                           <div className="flex items-center gap-1 text-xs font-medium text-foreground/80 mt-0.5">
-                            <Plane className="w-3 h-3 text-secondary" /> {carrier}
+                            {leg.mode === "flight" ? (
+                              <Plane className="w-3 h-3 text-secondary" />
+                            ) : (
+                              <span className="text-xs leading-none">
+                                {MODE_GLYPH[leg.mode] || MODE_GLYPH.other}
+                              </span>
+                            )}{" "}
+                            {carrier}
+                          </div>
+                        )}
+                        {/* Overnight segment (e.g. a night ferry or sleeper train). */}
+                        {overnight && (
+                          <div className="mt-1.5 mr-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-medium">
+                            <Moon className="w-3 h-3" /> Overnight
                           </div>
                         )}
                         {/* Short gap = connecting layover; long gap = the trip stay. */}
                         {layover > 0 && !isStay && (
-                          <div className="mt-1.5 inline-block px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-medium">
-                            {fmtDuration(layover)} layover in {leg.destination}
-                          </div>
+                          tight ? (
+                            <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-medium">
+                              <Clock className="w-3 h-3" /> Tight connection · {fmtDuration(layover)} in {leg.destination}
+                            </div>
+                          ) : (
+                            <div className="mt-1.5 inline-block px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-medium">
+                              {fmtDuration(layover)} layover in {leg.destination}
+                            </div>
+                          )
                         )}
                         {isStay && (
                           <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary/10 text-secondary border border-secondary/20 text-[11px] font-medium">

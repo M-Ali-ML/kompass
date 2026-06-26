@@ -6,14 +6,13 @@ from app.adapters.mcp_accommodation_service import accommodation_service
 from app.adapters.mcp_flight_service import flight_service
 from app.api.routes import router as api_router
 from app.db import init_db
+from app.logging_config import configure_logging
 from app.telemetry import flush_telemetry, init_telemetry
+
+configure_logging()
 
 logger = logging.getLogger("kompass.main")
 
-# Configure standard logging to show agent steps
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("pydantic_ai").setLevel(logging.INFO)
-logging.getLogger("kompass.agent").setLevel(logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

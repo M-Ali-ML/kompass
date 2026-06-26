@@ -250,6 +250,46 @@ async def search_web(ctx: RunContext[AgentDependencies], query: str) -> str:
 
 
 @kompass_agent.tool
+async def search_ground_transport(
+    ctx: RunContext[AgentDependencies],
+    origin: str,
+    destination: str,
+    date: str,
+    modes: str | None = None,
+) -> str:
+    """Research ground-transport options (train, bus, ferry) for a route and date.
+
+    Use this for any non-flight leg — e.g. the onward hop after a flight ("fly to
+    Athens, then ferry to Milos"), or a rail/bus journey between cities. It is the
+    ground-transport counterpart to `search_flights`: it returns grounded,
+    real-world info (operators, typical departure/arrival times, journey duration,
+    frequency, and a fare range) so you can build a realistic `Leg` with the correct
+    `mode`. Times and prices are approximate — present them as such.
+
+    For a connection after a flight, pass the same `date` as the flight arrival and
+    then align the onward `Leg.departure_time` to the flight `arrival_time` plus a
+    realistic transfer buffer.
+
+    Args:
+        origin: Departure city/port/station (e.g. 'Piraeus', 'Athens').
+        destination: Arrival city/port/station (e.g. 'Milos').
+        date: Travel date in 'YYYY-MM-DD' format.
+        modes: Optional comma-separated modes to focus on (e.g. 'ferry', 'train,bus').
+    """
+    currency = ctx.deps.user_preferences.currency
+    mode_clause = f" by {modes}" if modes else " by train, bus, or ferry"
+    query = (
+        f"Ground transport options{mode_clause} from {origin} to {destination} on {date}. "
+        "List the main operators, typical departure and arrival times, journey duration, "
+        "how frequently they run, and a one-way fare range. Note if any service is overnight "
+        "or seasonal.\n\n"
+        f"(Report any prices in {currency}.)"
+    )
+    logger.info(f"search_ground_transport query: {query!r}")
+    return await run_research(query)
+
+
+@kompass_agent.tool
 async def generate_scenarios(
     ctx: RunContext[AgentDependencies],
     destination: str,
