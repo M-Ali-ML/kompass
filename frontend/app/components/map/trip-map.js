@@ -11,6 +11,7 @@ import {
 import { MapPin, Compass, BedDouble } from "lucide-react";
 import { modeColor } from "../../lib/transport";
 import { geocodePlace, endpointQuery, accommodationQuery } from "../../lib/geocode";
+import { useMapState } from "./map-context";
 
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 // A mapId is required for Advanced Markers; the default cloud-styled id works
@@ -157,15 +158,26 @@ function RouteLayer({ stops, stays }) {
   return null;
 }
 
-function MapPanel({ route }) {
+// Smoothly pans the map to the currently hovered stay so its highlight marker is
+// always in view, without changing zoom (which would feel jarring on hover).
+function HoverPan({ hoveredStay }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!map || !hoveredStay) return;
+    map.panTo({ lat: hoveredStay.lat, lng: hoveredStay.lng });
+  }, [map, hoveredStay]);
+  return null;
+}
+
+function MapPanel({ route, hoveredStay }) {
   const { loading, stops, stays } = useGeocodedRoute(route);
 
   return (
     <div className="relative w-full h-full">
       <Map
         mapId={MAP_ID}
-        defaultCenter={{ lat: 30, lng: 10 }}
-        defaultZoom={3}
+        defaultCenter={hoveredStay ? { lat: hoveredStay.lat, lng: hoveredStay.lng } : { lat: 30, lng: 10 }}
+        defaultZoom={hoveredStay ? 11 : 3}
         gestureHandling="greedy"
         disableDefaultUI={false}
         className="w-full h-full"
@@ -187,6 +199,25 @@ function MapPanel({ route }) {
             </div>
           </AdvancedMarker>
         ))}
+
+        {/* Highlight marker for the stay being hovered in the chat — larger,
+            primary-colored, with a name label, drawn above the route markers. */}
+        {hoveredStay && (
+          <AdvancedMarker
+            position={{ lat: hoveredStay.lat, lng: hoveredStay.lng }}
+            title={hoveredStay.name}
+            zIndex={1000}
+          >
+            <div className="flex flex-col items-center -translate-y-1">
+              <div className="max-w-[160px] truncate rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-white border-2 border-white shadow-lg">
+                {hoveredStay.name}
+              </div>
+              <div className="h-3.5 w-3.5 -mt-0.5 rotate-45 bg-primary border-r-2 border-b-2 border-white" />
+            </div>
+          </AdvancedMarker>
+        )}
+
+        <HoverPan hoveredStay={hoveredStay} />
         <RouteLayer stops={stops} stays={stays} />
       </Map>
 
@@ -212,8 +243,11 @@ function Placeholder({ icon: Icon, title, subtitle }) {
 }
 
 // Right-panel interactive map. Renders a friendly placeholder when no API key is
-// configured (the app still works without a map) or when no route is selected.
+// configured (the app still works without a map) or when there's nothing to show
+// (no selected route and nothing being hovered).
 export function TripMap({ route }) {
+  const { hoveredStay } = useMapState();
+
   if (!MAPS_API_KEY) {
     return (
       <Placeholder
@@ -224,19 +258,22 @@ export function TripMap({ route }) {
     );
   }
 
-  if (!route || ((route.legs || []).length === 0 && (route.accommodations || []).length === 0)) {
+  const hasRoute =
+    route && ((route.legs || []).length > 0 || (route.accommodations || []).length > 0);
+
+  if (!hasRoute && !hoveredStay) {
     return (
       <Placeholder
         icon={Compass}
         title="Your trip will appear here"
-        subtitle="Plan or compare a trip in the chat and the route will be drawn on the map."
+        subtitle="Plan or compare a trip in the chat and the route will be drawn on the map. Hover a hotel to preview its location."
       />
     );
   }
 
   return (
     <APIProvider apiKey={MAPS_API_KEY}>
-      <MapPanel route={route} />
+      <MapPanel route={hasRoute ? route : null} hoveredStay={hoveredStay} />
     </APIProvider>
   );
 }

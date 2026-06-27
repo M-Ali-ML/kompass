@@ -126,6 +126,7 @@ export function SavedList({ reloadKey }) {
           currency={openItem.currency}
           destination={openItem.destination}
           savedId={openItem.id}
+          tripId={openItem.trip_id}
           onRemoved={() => load()}
           onClose={() => setOpenItem(null)}
         />

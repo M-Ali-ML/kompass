@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     google_api_key: SecretStr = Field(alias="GOOGLE_API_KEY")
     llm_model: str = Field("google:gemini-2.5-pro", alias="LLM_MODEL")
 
+    # Trip "vibe" background image generation. A cheap Gemini image model paints
+    # a destination/atmosphere image per trip (shown in the trip sidebar + the
+    # scenario detail modal). `image_scene_model` is a cheap text model used to
+    # turn the conversation into a destination + scene prompt. Set
+    # `background_image_enabled=false` to disable the feature entirely.
+    image_model: str = Field("gemini-2.5-flash-image", alias="IMAGE_MODEL")
+    image_scene_model: str = Field("google:gemini-2.5-flash-lite", alias="IMAGE_SCENE_MODEL")
+    background_image_enabled: bool = Field(True, alias="BACKGROUND_IMAGE_ENABLED")
+
     # Flights provider (SerpApi Google Flights). Optional: when unset, the
     # flight tools degrade to the grounded search_web tool.
     serpapi_api_key: Optional[SecretStr] = Field(None, alias="SERPAPI_API_KEY")

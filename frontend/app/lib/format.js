@@ -60,3 +60,17 @@ export const parseResult = (result) => {
   }
   return result;
 };
+
+// Backend data tools signal an unreachable/failed source with an `error` field
+// (e.g. {"error": "Flight search is unavailable.", "options": []}). Surface a
+// friendly message so the card can render a graceful fallback instead of
+// silently vanishing.
+export const resultError = (data) => {
+  const msg = data?.error;
+  return typeof msg === "string" && msg.trim() ? msg.trim() : null;
+};
+
+// While a tool call streams, CopilotKit reports `inProgress` (args still
+// arriving) then `executing` (running). Pick the right verb so the loading
+// label reads "Preparing …" before flipping to the active search copy.
+export const isPreparing = (status) => status === "inProgress";

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Plus, MapPin, Trash2, Loader2 } from "lucide-react";
 import { listTrips, deleteTrip } from "../lib/trips-api";
 import { SavedList } from "./saved-list";
+import { TripBackdrop } from "./trip-backdrop";
 
 export function TripSidebar({ activeThreadId, onNewTrip, onSelectTrip, reloadKey }) {
   const [trips, setTrips] = useState([]);
@@ -90,23 +91,39 @@ export function TripSidebar({ activeThreadId, onNewTrip, onSelectTrip, reloadKey
                 <li key={trip.id}>
                   <div
                     onClick={() => onSelectTrip(trip.id)}
-                    className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-2xl cursor-pointer transition-colors ${
+                    className={`group relative overflow-hidden flex items-center gap-2.5 px-3 py-2.5 rounded-2xl cursor-pointer transition-colors ${
                       isActive
                         ? "bg-pink-50 border border-pink-200"
                         : "border border-transparent hover:bg-pink-50/60"
                     }`}
                   >
+                    <TripBackdrop
+                      tripId={trip.id}
+                      version={trip.updated_at}
+                      fade="left"
+                      intensity={55}
+                    />
+                    {/* Scrim anchored to the text side so the title always sits
+                        on a near-solid background while the image bleeds in from
+                        the right. Tinted to match the row's own background. */}
+                    <div
+                      className={`pointer-events-none absolute inset-0 bg-gradient-to-r to-transparent ${
+                        isActive
+                          ? "from-pink-50 via-pink-50/70"
+                          : "from-surface via-surface/70"
+                      }`}
+                    />
                     <MapPin
-                      className={`w-4 h-4 shrink-0 ${
+                      className={`relative z-10 w-4 h-4 shrink-0 ${
                         isActive ? "text-primary" : "text-muted"
                       }`}
                     />
-                    <span className="flex-1 truncate text-sm font-medium text-foreground">
+                    <span className="relative z-10 flex-1 truncate text-sm font-semibold text-foreground [text-shadow:0_1px_2px_rgba(255,255,255,0.9)]">
                       {trip.title || "New Trip"}
                     </span>
                     <button
                       onClick={(e) => handleDelete(e, trip.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-pink-100 text-muted hover:text-primary transition-opacity"
+                      className="relative z-10 opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-pink-100 text-muted hover:text-primary transition-opacity"
                       aria-label="Delete trip"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

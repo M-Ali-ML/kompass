@@ -43,6 +43,15 @@ export async function deleteTrip(tripId) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
+// URL for a trip's generated "vibe" background image. `version` (e.g. the trip's
+// updated_at) busts the browser cache after a regeneration so a refreshed image
+// shows without a hard reload. Returns null when no trip id is available.
+export function tripBackgroundImageUrl(tripId, version) {
+  if (!tripId) return null;
+  const base = `${API_BASE}/api/trips/${tripId}/background.img`;
+  return version ? `${base}?v=${encodeURIComponent(version)}` : base;
+}
+
 // --- Saved scenarios ---------------------------------------------------------
 
 export async function saveScenario({ scenario, tripId, destination, currency }) {

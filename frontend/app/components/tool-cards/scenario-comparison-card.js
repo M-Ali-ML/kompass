@@ -25,6 +25,7 @@ import { formatPrice, parseResult, googleFlightsUrl } from "../../lib/format";
 import { saveScenario, deleteSavedScenario } from "../../lib/trips-api";
 import { useMapState, routeFromScenario } from "../map/map-context";
 import { MODE_GLYPH } from "../../lib/transport";
+import { TripBackdrop } from "../trip-backdrop";
 
 export const scenarioComparisonParameters = z.object({
   destination: z.string().optional(),
@@ -283,9 +284,12 @@ const SAVE_LABEL = {
 // Centered popup with the full itinerary for one scenario (opened from "View details").
 // When `savedId` is provided (opened from the Saved panel), the footer offers
 // "Remove from saved" instead of the save action.
-export function ScenarioDetailModal({ scenario, currency, destination, savedId, onRemoved, onClose }) {
+export function ScenarioDetailModal({ scenario, currency, destination, savedId, tripId, onRemoved, onClose }) {
   const { agent } = useAgent();
   const { setActiveRoute } = useMapState();
+  // Resolve which trip's vibe image to show: an explicit tripId (saved entries
+  // carry their own) wins, otherwise fall back to the live conversation thread.
+  const backdropTripId = tripId || agent?.threadId;
   const [saveState, setSaveState] = useState("idle");
   const [removeState, setRemoveState] = useState("idle");
 
@@ -361,10 +365,16 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
 
       <div className="relative w-full max-w-[640px] max-h-[88vh] flex flex-col rounded-3xl bg-surface pink-shadow-deep overflow-hidden">
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 border-b border-pink-100">
-          <div className="flex items-start justify-between gap-3">
+        <div className="relative overflow-hidden px-5 pt-5 pb-3 min-h-[104px] flex flex-col justify-end border-b border-pink-100">
+          <TripBackdrop tripId={backdropTripId} fade="bottom" />
+          {/* Scrim: kept light so the image stays vivid, with a horizontal
+              gradient that only protects the left edge where the title sits and
+              a soft bottom wash so the heading/dates stay legible. */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-surface via-surface/55 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-surface/85 to-transparent" />
+          <div className="relative z-10 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-lg font-extrabold text-foreground leading-tight">{scenario.label}</h2>
+              <h2 className="text-lg font-extrabold text-foreground leading-tight [text-shadow:0_1px_3px_rgba(255,255,255,0.7)]">{scenario.label}</h2>
               <div className="flex items-center flex-wrap gap-2 mt-1">
                 {scenario.comparison_label && (
                   <span className="px-2.5 py-0.5 bg-secondary/15 text-secondary rounded-full text-[11px] font-bold uppercase tracking-wide">

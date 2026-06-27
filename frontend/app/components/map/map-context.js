@@ -26,14 +26,17 @@ export function routeFromScenario(scenario, { destination, currency } = {}) {
 
 export function MapStateProvider({ children }) {
   const [activeRoute, setActiveRoute] = useState(null);
+  // Transient highlight driven by hovering an accommodation tile in the chat
+  // (a stays card). Shape: { name, lat, lng } | null.
+  const [hoveredStay, setHoveredStay] = useState(null);
 
   const setRouteFromScenario = useCallback((scenario, opts) => {
     setActiveRoute(routeFromScenario(scenario, opts));
   }, []);
 
   const value = useMemo(
-    () => ({ activeRoute, setActiveRoute, setRouteFromScenario }),
-    [activeRoute, setRouteFromScenario]
+    () => ({ activeRoute, setActiveRoute, setRouteFromScenario, hoveredStay, setHoveredStay }),
+    [activeRoute, setRouteFromScenario, hoveredStay]
   );
 
   return <MapStateContext.Provider value={value}>{children}</MapStateContext.Provider>;
@@ -44,7 +47,13 @@ export function useMapState() {
   if (!ctx) {
     // Tolerate use outside the provider (e.g. a card rendered before mount) so
     // a missing provider degrades to a no-op rather than crashing the chat.
-    return { activeRoute: null, setActiveRoute: () => {}, setRouteFromScenario: () => {} };
+    return {
+      activeRoute: null,
+      setActiveRoute: () => {},
+      setRouteFromScenario: () => {},
+      hoveredStay: null,
+      setHoveredStay: () => {},
+    };
   }
   return ctx;
 }

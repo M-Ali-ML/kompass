@@ -1,17 +1,21 @@
+import asyncio
 import json
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from app.agent.agent import kompass_agent
 from app.agent.dependency import get_agent_dependencies
+from app.agent.image_agent import generate_trip_background
+from app.config import settings
 from app.db import SessionLocal
 from app.domain import UserPreferences
 from app.adapters.sqlite_trip_repository import SqliteTripRepository
+from app.adapters.sqlite_trip_background_repository import SqliteTripBackgroundRepository
 from app.adapters.sqlite_user_profile_repository import SqliteUserProfileRepository
 from app.adapters.sqlite_saved_scenario_repository import SqliteSavedScenarioRepository
 from app.telemetry import stream_with_attributes
@@ -23,6 +27,20 @@ router = APIRouter()
 
 def _trip_repository() -> SqliteTripRepository:
     return SqliteTripRepository(SessionLocal)
+
+
+def _trip_background_repository() -> SqliteTripBackgroundRepository:
+    return SqliteTripBackgroundRepository(SessionLocal)
+
+
+def _conversation_text(ag_messages) -> str:
+    """Join the user turns of an AG-UI message list into a single text blob the
+    scene agent can read to infer the destination + vibe."""
+    parts = []
+    for m in ag_messages:
+        if getattr(m, "role", None) == "user" and getattr(m, "content", None):
+            parts.append(str(m.content))
+    return "\n".join(parts)
 
 
 def _profile_repository() -> SqliteUserProfileRepository:
@@ -142,6 +160,16 @@ async def copilotkit_endpoint(request: Request):
         except Exception as e:
             logger.error(f"Error upserting trip {thread_id}: {e}")
 
+    # Kick off the trip "vibe" background image as a fire-and-forget task so it
+    # runs concurrently with — and never stalls — the agent stream. It guards
+    # itself to run at most once per trip (and only once a destination is known).
+    if settings.background_image_enabled and thread_id:
+        convo_text = _conversation_text(ag_messages)
+        if convo_text.strip():
+            asyncio.create_task(
+                generate_trip_background(thread_id, convo_text, user_preferences)
+            )
+
     deps = get_agent_dependencies(user_preferences=user_preferences, trip_id=thread_id)
 
     async def on_complete(result) -> None:
@@ -239,6 +267,23 @@ async def save_trip_messages(trip_id: str, payload: SaveMessagesRequest):
     title = payload.title or _title_from_messages(payload.messages)
     await _trip_repository().save_message_history(trip_id, payload.messages, title=title)
     return {"status": "ok", "id": trip_id, "count": len(payload.messages)}
+
+
+@router.get("/api/trips/{trip_id}/background.img")
+async def get_trip_background_image(trip_id: str):
+    """Serve a trip's generated vibe image, or 404 until it's ready.
+
+    The frontend loads this directly in an <img> tag and hides the element on
+    error, so a 404 (not generated yet / generation failed) degrades cleanly.
+    """
+    row = await _trip_background_repository().get(trip_id)
+    if row is None or row.status != "ready" or not row.image:
+        raise HTTPException(status_code=404, detail="No background image")
+    return Response(
+        content=row.image,
+        media_type=row.mime or "image/webp",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.delete("/api/trips/{trip_id}")

@@ -68,9 +68,99 @@ body {
   }
 }
 
+/* Candy-tinted skeleton shimmer — a soft pink sweep instead of flat grey so
+   loading placeholders stay on-brand. */
 .shimmer {
-  background: linear-gradient(90deg, #f0f0f0 25%, #f7f7f7 50%, #f0f0f0 75%);
+  background: linear-gradient(
+    90deg,
+    rgba(224, 64, 160, 0.07) 25%,
+    rgba(224, 64, 160, 0.16) 50%,
+    rgba(224, 64, 160, 0.07) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
+}
+
+/* Indeterminate search-progress bar: a candy gradient pill that slides across
+   its track while a tool call is in flight. Used by SearchProgress. */
+@keyframes progress-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(420%);
+  }
+}
+
+.progress-slide {
+  animation: progress-slide 1.15s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* Compact, on-brand typography for markdown rendered inside tool cards
+   (grounded web-research / ground-transport answers). Keeps headings, lists
+   and emphasis readable without the large default prose spacing. */
+.kompass-markdown {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--foreground) 80%, transparent);
+  word-break: break-word;
+}
+.kompass-markdown > :first-child {
+  margin-top: 0;
+}
+.kompass-markdown > :last-child {
+  margin-bottom: 0;
+}
+.kompass-markdown h1,
+.kompass-markdown h2,
+.kompass-markdown h3,
+.kompass-markdown h4 {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0.75rem 0 0.35rem;
+}
+.kompass-markdown p {
+  margin: 0.45rem 0;
+}
+.kompass-markdown ul,
+.kompass-markdown ol {
+  margin: 0.4rem 0;
+  padding-left: 1.15rem;
+}
+.kompass-markdown ul {
+  list-style: disc;
+}
+.kompass-markdown ol {
+  list-style: decimal;
+}
+.kompass-markdown li {
+  margin: 0.2rem 0;
+}
+.kompass-markdown strong {
+  font-weight: 700;
+  color: var(--foreground);
+}
+.kompass-markdown a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.kompass-markdown code {
+  font-size: 0.8em;
+  padding: 0.1em 0.35em;
+  border-radius: 0.375rem;
+  background: rgba(224, 64, 160, 0.1);
+}
+
+/* Gentle continuous rotation for the brand compass (slower than animate-spin). */
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 6s linear infinite;
 }
 

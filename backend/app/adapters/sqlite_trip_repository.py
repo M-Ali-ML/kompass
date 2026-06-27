@@ -6,7 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.domain.models import Message, Trip
+from app.domain.models import Message, Trip, TripBackground
 from app.ports.trip_repository import TripRepository
 
 logger = logging.getLogger("kompass.repository.trip")
@@ -114,6 +114,12 @@ class SqliteTripRepository(TripRepository):
         async with self._session_factory() as session:
             trip = await session.get(Trip, trip_id)
             if trip is not None:
+                # Explicitly remove the background row (SQLite FK ON DELETE
+                # CASCADE only fires when PRAGMA foreign_keys=ON, which we don't
+                # rely on).
+                background = await session.get(TripBackground, trip_id)
+                if background is not None:
+                    await session.delete(background)
                 await session.delete(trip)
                 await session.commit()
                 logger.info("Deleted trip %s", trip_id)

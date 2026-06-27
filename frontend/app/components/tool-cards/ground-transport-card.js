@@ -1,16 +1,19 @@
 import { useState } from "react";
-import { Globe, ChevronDown } from "lucide-react";
+import { TrainFront, ChevronDown } from "lucide-react";
 import { z } from "zod";
 import { ToolCard } from "../tool-card";
 import { Markdown } from "../markdown";
 import { isPreparing } from "../../lib/format";
 
-export const researchParameters = z.object({
-  query: z.string().optional(),
+export const groundTransportParameters = z.object({
+  origin: z.string().optional(),
+  destination: z.string().optional(),
+  date: z.string().optional(),
+  modes: z.string().nullable().optional(),
 });
 
-// Coerce the search_web result (a markdown string, occasionally wrapped in an
-// object by the transport) into plain text.
+// search_ground_transport returns a grounded markdown string (trains / buses /
+// ferries), same shape as search_web. Coerce object-wrapped results to text.
 const toText = (result) => {
   if (result == null) return "";
   if (typeof result === "string") return result;
@@ -18,18 +21,19 @@ const toText = (result) => {
   return String(result);
 };
 
-// Generative UI for search_web — collapses the grounded research answer into a
-// tidy, expandable card instead of dumping the raw markdown into the chat.
-export function ResearchCard({ status, parameters, result }) {
+// Generative UI for search_ground_transport — a collapsible card so the route's
+// rail/bus/ferry options don't dump raw markdown into the chat.
+export function GroundTransportCard({ status, parameters, result }) {
   const [open, setOpen] = useState(false);
-  const query = parameters?.query || "";
+  const route = `${parameters?.origin || "?"} → ${parameters?.destination || "?"}`;
+  const modes = parameters?.modes ? ` · ${parameters.modes}` : "";
 
   if (status !== "complete") {
     return (
       <ToolCard
-        icon={Globe}
+        icon={TrainFront}
         loading
-        label={isPreparing(status) ? "Preparing web research…" : `Researching the web${query ? ` · ${query}` : ""}`}
+        label={isPreparing(status) ? "Preparing transit search…" : `Searching ground transport ${route}${modes}`}
       />
     );
   }
@@ -37,30 +41,24 @@ export function ResearchCard({ status, parameters, result }) {
   const text = toText(result).trim();
   if (!text) return null;
 
-  // The research sub-agent reports failures inline as "(Live web search was
-  // unavailable: …)" — render that as a graceful error rather than passing it
-  // off as a real finding.
   if (text.startsWith("(Live web search was unavailable")) {
     return (
       <ToolCard
-        icon={Globe}
-        label="Web research"
-        error="Live web search was temporarily unavailable. I'll work from what I already know."
+        icon={TrainFront}
+        label={`Ground transport · ${route}`}
+        error="Live transit lookup was temporarily unavailable. I'll estimate from what I already know."
       />
     );
   }
 
   return (
-    <ToolCard icon={Globe} label="Web research">
-      {query && (
-        <p className="text-xs font-medium text-foreground/70 mb-2 line-clamp-2">“{query}”</p>
-      )}
+    <ToolCard icon={TrainFront} label={`Ground transport · ${route}`}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between gap-2 text-left text-xs font-semibold text-primary hover:opacity-80"
       >
-        {open ? "Hide details" : "Show what I found"}
+        {open ? "Hide options" : "Show transit options"}
         <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       <div className={`relative mt-2 ${open ? "" : "max-h-20 overflow-hidden"}`}>

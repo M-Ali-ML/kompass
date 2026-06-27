@@ -1,3 +1,4 @@
+import asyncio
 import calendar
 import logging
 from datetime import date, datetime
@@ -5,6 +6,7 @@ from typing import Union
 from pydantic_ai import Agent, RunContext
 from app.config import settings
 from app.agent.dependency import AgentDependencies
+from app.agent.image_agent import generate_trip_background
 from app.agent.research_agent import run_research
 from app.domain import Scenario, UserPreferences
 
@@ -52,7 +54,7 @@ kompass_agent = Agent(
     llm_model,
     deps_type=AgentDependencies,
     output_type=Union[str, Scenario],
-    model_settings={'thinking': True},
+    model_settings={'thinking': True, 'thinking_level': 'high'},
 )
 
 @kompass_agent.tool
@@ -369,6 +371,36 @@ async def generate_scenarios(
         "estimated": estimated,
         "scenarios": [s.model_dump(mode="json") for s in scenarios],
     }
+
+
+@kompass_agent.tool
+async def set_background_image(ctx: RunContext[AgentDependencies], scene_description: str) -> str:
+    """Regenerate the trip's "vibe" background image with a new scene.
+
+    Call this ONLY when the user explicitly asks to change, refresh, or set the
+    background/vibe image for the trip (e.g. "change the background to a sunset
+    over the caldera"). Do NOT call it as part of normal planning — an image is
+    generated automatically for every trip.
+
+    Args:
+        scene_description: A vivid, photographic scene to render. Describe place,
+            mood, light and season. No text, letters, words, logos, or watermarks.
+    """
+    trip_id = ctx.deps.trip_id
+    if not trip_id:
+        return "I couldn't update the background image — there's no active trip yet."
+    # Fire-and-forget so the chat reply isn't blocked by image rendering.
+    asyncio.create_task(
+        generate_trip_background(
+            trip_id,
+            scene_description,
+            ctx.deps.user_preferences,
+            force=True,
+            override_scene=scene_description,
+        )
+    )
+    logger.info(f"Regenerating background image for trip {trip_id}")
+    return "Updating the trip's background image now — it'll refresh in a moment."
 
 
 @kompass_agent.system_prompt(dynamic=True)

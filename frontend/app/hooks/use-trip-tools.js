@@ -8,6 +8,10 @@ import {
 } from "../components/tool-cards/accommodations-card";
 import { ResearchCard, researchParameters } from "../components/tool-cards/research-card";
 import {
+  GroundTransportCard,
+  groundTransportParameters,
+} from "../components/tool-cards/ground-transport-card";
+import {
   ScenarioComparisonCard,
   scenarioComparisonParameters,
 } from "../components/tool-cards/scenario-comparison-card";
@@ -44,6 +48,12 @@ export function useTripTools() {
     name: "search_web",
     parameters: researchParameters,
     render: (props) => <ResearchCard {...props} />,
+  });
+
+  useRenderTool({
+    name: "search_ground_transport",
+    parameters: groundTransportParameters,
+    render: (props) => <GroundTransportCard {...props} />,
   });
 
   useRenderTool({
