@@ -2,6 +2,14 @@ from pydantic import BaseModel, Field
 
 class UserPreferences(BaseModel):
     """Stores traveler preferences extracted from conversation or profiles."""
+    home_city: str | None = Field(
+        default=None,
+        description=(
+            "The traveler's home/departure city or airport (e.g. 'Berlin' or 'BER'). "
+            "Used as the default flight/transport origin so it doesn't need to be "
+            "asked every trip."
+        ),
+    )
     direct_flights_only: bool = Field(
         default=False, 
         description="Whether the user strictly prefers direct flights."
@@ -30,6 +38,8 @@ class UserPreferences(BaseModel):
         global profile baseline without wiping values the override omitted.
         """
         merged = self.model_copy(deep=True)
+        if override.home_city:
+            merged.home_city = override.home_city
         if override.direct_flights_only:
             merged.direct_flights_only = True
         if override.preferred_transit_modes:

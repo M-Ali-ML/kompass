@@ -33,6 +33,7 @@ router = APIRouter()
 # Preference fields copied verbatim from a `gather_preferences` tool call.
 # `currency` is handled separately because it only overrides when truthy.
 _PREFERENCE_FIELDS = (
+    "home_city",
     "direct_flights_only",
     "preferred_transit_modes",
     "hotel_class",

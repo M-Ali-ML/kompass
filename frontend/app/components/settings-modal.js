@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Check, Plane, Loader2, Tag } from "lucide-react";
+import { X, Check, Plane, Loader2, Tag, MapPin } from "lucide-react";
 import { getProfile, updateProfile } from "../lib/trips-api";
 import { MODE_GLYPH } from "../lib/transport";
 
@@ -25,6 +25,7 @@ const HOTEL_CLASSES = [
 const CURRENCIES = ["EUR", "USD", "GBP", "JPY", "AUD", "CAD", "CHF", "SEK", "NOK", "DKK"];
 
 const EMPTY_PREFS = {
+  home_city: null,
   direct_flights_only: false,
   preferred_transit_modes: [],
   hotel_class: null,
@@ -101,6 +102,7 @@ export function SettingsModal({ onClose }) {
     setSaveState("saving");
     try {
       await updateProfile({
+        home_city: prefs.home_city?.trim() || null,
         direct_flights_only: !!prefs.direct_flights_only,
         preferred_transit_modes: prefs.preferred_transit_modes,
         hotel_class: prefs.hotel_class || null,
@@ -156,6 +158,30 @@ export function SettingsModal({ onClose }) {
             </div>
           ) : (
             <>
+              {/* Home city */}
+              <section>
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground/70 mb-2">
+                  Home city / departure airport
+                </h3>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary" />
+                  <input
+                    type="text"
+                    aria-label="Home city or departure airport"
+                    value={prefs.home_city || ""}
+                    onChange={(e) => {
+                      setSaveState("idle");
+                      setPrefs((p) => ({ ...p, home_city: e.target.value }));
+                    }}
+                    placeholder="e.g. Berlin or BER"
+                    className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-pink-200 bg-surface text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </div>
+                <p className="text-xs text-foreground/60 mt-1.5">
+                  Used as the default origin for flights so you&apos;re not asked every trip.
+                </p>
+              </section>
+
               {/* Direct flights */}
               <section className="flex items-center justify-between gap-4">
                 <div>

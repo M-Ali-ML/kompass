@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ToolCard } from "../tool-card";
 
 export const preferencesParameters = z.object({
+  home_city: z.string().nullable().optional(),
   direct_flights_only: z.boolean().optional(),
   preferred_transit_modes: z.array(z.string()).optional(),
   hotel_class: z.string().nullable().optional(),
@@ -24,6 +25,7 @@ export function PreferencesCard({ status, parameters: prefs }) {
   const isComplete = status === "complete";
   const showCurrency = prefs.currency && prefs.currency !== "EUR";
   const hasPrefs =
+    prefs.home_city ||
     prefs.direct_flights_only ||
     (prefs.preferred_transit_modes && prefs.preferred_transit_modes.length > 0) ||
     prefs.hotel_class ||
@@ -40,6 +42,11 @@ export function PreferencesCard({ status, parameters: prefs }) {
       label={isComplete ? "Preferences Extracted" : "Extracting Preferences..."}
     >
       <div className="flex flex-wrap gap-1.5">
+        {prefs.home_city && (
+          <span className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-100 rounded-full text-xs font-semibold">
+            📍 From {prefs.home_city}
+          </span>
+        )}
         {prefs.direct_flights_only && (
           <span className="px-2.5 py-1 bg-pink-50 text-pink-700 border border-pink-100 rounded-full text-xs font-semibold">
             ✈️ Direct Flights Only
