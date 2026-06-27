@@ -12,7 +12,7 @@ This skill defines how coding agents must maintain daily session logs in the `se
 
 ## Core Development Philosophies (Always Follow)
 * **Start Very Simple**: Do not attempt to build a complex agent or fully-featured application immediately. Start with a minimal, working prototype/baseline and build up incrementally.
-* **Test-Driven Development (TDD)**: Do not engage in "pure vibe coding" of a full application without verifying correctness. Write tests first and fully implement TDD per [tdd.md](file:///Users/aly/repos/kompass/.agents/rules/tdd.md) to ensure each vertical slice of behavior is verified before expanding.
+* **Test-Driven Development (TDD)**: Do not engage in "pure vibe coding" of a full application without verifying correctness. Write tests first and fully implement TDD per [tdd.md](../../../.agents/rules/tdd.md) to ensure each vertical slice of behavior is verified before expanding.
 
 ---
 
@@ -40,7 +40,7 @@ You **MUST** invoke this skill and update the current daily session log:
 ### 3. Apply the Updates
 * Make updates to the corresponding sections:
   * **Current Objectives**: What is the overall goal of the current work stream.
-  * **Today's Progress**: Bulleted list of implemented features, refactorings, or changes. Include absolute file links (e.g. `[main.py](file:///Users/aly/repos/kompass/src/main.py)`) for edited files.
+  * **Today's Progress**: Bulleted list of implemented features, refactorings, or changes. Include repo-relative file links (from `sessions/`, e.g. `[main.py](../backend/app/main.py)`) for edited files.
   * **Gotchas & Troubleshooting**: Any unexpected behaviors, dependency conflicts, APIs quirks, or issues you had to debug and how they were resolved.
   * **Preferences & Architectural Decisions**: Design/backend architecture choices, configuration settings, or constraints.
   * **Next Steps**: What the next agent needs to pick up immediately.
@@ -59,7 +59,7 @@ You **MUST** invoke this skill and update the current daily session log:
 ## 🚀 Today's Progress
 - **Feature/Component**:
   - Detailed bullet points of what was done.
-  - Link files changed: `[filename](file:///absolute/path/to/file)`
+  - Link files changed: `[filename](../path/to/file)`
 
 ## ⚠️ Gotchas & Troubleshooting
 - **Issue Description**: Explain what failed or acted unexpectedly.
@@ -77,5 +77,5 @@ You **MUST** invoke this skill and update the current daily session log:
 
 ## Formatting Guidelines
 * Keep summaries concise but technical. Specify file paths, function/class names, and library names.
-* Use absolute Markdown links for all files (e.g., `[architecture.md](file:///Users/aly/repos/kompass/docs/architecture.md)`).
+* Use repo-relative Markdown links for all files (from `sessions/`, e.g., `[architecture.md](../docs/architecture.md)`). Never use machine-absolute `file:///Users/...` paths.
 * Do not delete history from the current day's log; append or update the checklists as tasks progress.

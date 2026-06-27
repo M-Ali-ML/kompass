@@ -27,13 +27,13 @@ Review the files you have created, modified, or deleted during your session.
 ### 2. Determine Which Post-Docs Require Updates
 Determine which files in `docs/` correspond to your changes:
 
-* **[architecture.md](file:///Users/aly/repos/kompass/docs/architecture.md)**
+* **[architecture.md](../../../docs/architecture.md)**
   * *Update when:* Modifying backend routes/endpoints, adding/changing domain models, creating ports or adapters, updating SQLite schemas, integrating new external APIs (MCP, CopilotKit, Google Maps), or changing third-party frameworks.
-* **[design.md](file:///Users/aly/repos/kompass/docs/design.md)**
+* **[design.md](../../../docs/design.md)**
   * *Update when:* Changing the active visual theme, CSS properties/styling, layout systems, component markup structure, font styles, animations, or interactive behaviors.
-* **[product.md](file:///Users/aly/repos/kompass/docs/product.md)**
+* **[product.md](../../../docs/product.md)**
   * *Update when:* Implementing, testing, or modifying high-level features. Ensure the feature status checklist is kept up to date.
-* **[user-stories.md](file:///Users/aly/repos/kompass/docs/user-stories.md)**
+* **[user-stories.md](../../../docs/user-stories.md)**
   * *Update when:* Developing code that fulfills the acceptance criteria of any user stories. Mark stories as:
     * `[x]` Completed (when fully functional and verified)
     * `[/]` In Progress (when currently being worked on)
@@ -43,11 +43,11 @@ Determine which files in `docs/` correspond to your changes:
 Always read the current content of the target post-doc file using `view_file` to ensure you understand its current structure and do not overwrite or duplicate sections.
 
 ### 4. Apply Updates
-Use code replacement tools (`replace_file_content` or `multi_replace_file_content`) to apply edits to the files. Ensure all file references in the documentation are formatted as absolute paths (e.g., `[main.py](file:///Users/aly/repos/kompass/backend/app/main.py)`).
+Use code replacement tools (`replace_file_content` or `multi_replace_file_content`) to apply edits to the files. Ensure all file references in the documentation are formatted as **repo-relative links** (e.g., from `docs/`, `[main.py](../backend/app/main.py)`). Never use machine-absolute `file:///Users/...` paths — they leak local usernames and break for other clones and on GitHub.
 
 ---
 
 ## Formatting Guidelines
 * **Read-Only Pre-Docs:** Never modify files under `pre-docs/`. They are historical blueprints. Only edit files under `docs/`.
 * **Be Precise and Direct:** Document actual names of classes, functions, routes, tables, and variables.
-* **Maintain Absolute Links:** Always write file references as absolute links, e.g. `[db_sqlite.py](file:///Users/aly/repos/kompass/backend/app/adapters/db_sqlite.py)`.
+* **Maintain Relative Links:** Always write file references as repo-relative links from the doc's location, e.g. from `docs/`: `[db_sqlite.py](../backend/app/adapters/db_sqlite.py)`. Never use `file:///Users/...` absolute paths.
