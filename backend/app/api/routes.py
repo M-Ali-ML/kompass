@@ -3,7 +3,7 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.ui.ag_ui import AGUIAdapter
@@ -11,13 +11,18 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from app.agent.agent import kompass_agent
 from app.agent.dependency import get_agent_dependencies
 from app.agent.image_agent import generate_trip_background
+from app.api.dependencies import (
+    get_profile_repository,
+    get_saved_scenario_repository,
+    get_trip_background_repository,
+    get_trip_repository,
+)
 from app.config import settings
-from app.db import SessionLocal
 from app.domain import UserPreferences
-from app.adapters.sqlite_trip_repository import SqliteTripRepository
-from app.adapters.sqlite_trip_background_repository import SqliteTripBackgroundRepository
-from app.adapters.sqlite_user_profile_repository import SqliteUserProfileRepository
-from app.adapters.sqlite_saved_scenario_repository import SqliteSavedScenarioRepository
+from app.ports.saved_scenario_repository import SavedScenarioRepository
+from app.ports.trip_background_repository import TripBackgroundRepository
+from app.ports.trip_repository import TripRepository
+from app.ports.user_profile_repository import UserProfileRepository
 from app.telemetry import stream_with_attributes
 
 logger = logging.getLogger("kompass.routes")
@@ -25,78 +30,72 @@ logger = logging.getLogger("kompass.routes")
 router = APIRouter()
 
 
-def _trip_repository() -> SqliteTripRepository:
-    return SqliteTripRepository(SessionLocal)
+# Preference fields copied verbatim from a `gather_preferences` tool call.
+# `currency` is handled separately because it only overrides when truthy.
+_PREFERENCE_FIELDS = (
+    "direct_flights_only",
+    "preferred_transit_modes",
+    "hotel_class",
+    "vibe_tags",
+)
 
 
-def _trip_background_repository() -> SqliteTripBackgroundRepository:
-    return SqliteTripBackgroundRepository(SessionLocal)
+def _message_role(message) -> str | None:
+    """Read the role of an AG-UI message in either object or dict form."""
+    return message.get("role") if isinstance(message, dict) else getattr(message, "role", None)
+
+
+def _message_content(message) -> str | None:
+    """Read the content of an AG-UI message in either object or dict form."""
+    content = message.get("content") if isinstance(message, dict) else getattr(message, "content", None)
+    return content if isinstance(content, str) else None
 
 
 def _conversation_text(ag_messages) -> str:
     """Join the user turns of an AG-UI message list into a single text blob the
     scene agent can read to infer the destination + vibe."""
-    parts = []
-    for m in ag_messages:
-        if getattr(m, "role", None) == "user" and getattr(m, "content", None):
-            parts.append(str(m.content))
+    parts = [c for m in ag_messages if _message_role(m) == "user" and (c := _message_content(m))]
     return "\n".join(parts)
 
 
-def _profile_repository() -> SqliteUserProfileRepository:
-    return SqliteUserProfileRepository(SessionLocal)
+def _title_from_messages(messages) -> str:
+    """Derive a human-friendly trip title from the first user turn.
 
-
-def _saved_scenario_repository() -> SqliteSavedScenarioRepository:
-    return SqliteSavedScenarioRepository(SessionLocal)
+    Accepts both AG-UI message objects and plain dicts so the same logic backs
+    the live run and the client-side history save.
+    """
+    for message in messages:
+        if _message_role(message) == "user" and (content := _message_content(message)) and content.strip():
+            text = content.strip().replace("\n", " ")
+            return text[:60] + ("…" if len(text) > 60 else "")
+    return "New Trip"
 
 
 def extract_preferences_from_history(messages) -> UserPreferences:
     prefs = UserPreferences()
     for message in messages:
-        if isinstance(message, ModelResponse):
-            for part in message.parts:
-                if part.part_kind == 'tool-call' and part.tool_name == 'gather_preferences':
-                    args = part.args
-                    if isinstance(args, str):
-                        try:
-                            args_dict = json.loads(args)
-                        except Exception:
-                            args_dict = {}
-                    elif isinstance(args, dict):
-                        args_dict = args
-                    else:
-                        args_dict = {}
+        if not isinstance(message, ModelResponse):
+            continue
+        for part in message.parts:
+            if part.part_kind != 'tool-call' or part.tool_name != 'gather_preferences':
+                continue
+            args = part.args
+            if isinstance(args, str):
+                try:
+                    args_dict = json.loads(args)
+                except Exception:
+                    args_dict = {}
+            elif isinstance(args, dict):
+                args_dict = args
+            else:
+                args_dict = {}
 
-                    if 'direct_flights_only' in args_dict:
-                        prefs.direct_flights_only = args_dict['direct_flights_only']
-                    if 'preferred_transit_modes' in args_dict:
-                        prefs.preferred_transit_modes = args_dict['preferred_transit_modes']
-                    if 'hotel_class' in args_dict:
-                        prefs.hotel_class = args_dict['hotel_class']
-                    if 'vibe_tags' in args_dict:
-                        prefs.vibe_tags = args_dict['vibe_tags']
-                    if 'currency' in args_dict and args_dict['currency']:
-                        prefs.currency = args_dict['currency']
+            for field in _PREFERENCE_FIELDS:
+                if field in args_dict:
+                    setattr(prefs, field, args_dict[field])
+            if args_dict.get('currency'):
+                prefs.currency = args_dict['currency']
     return prefs
-
-
-def _derive_title(ag_messages) -> str:
-    """Use the first user message as a human-friendly trip title."""
-    for message in ag_messages:
-        if getattr(message, "role", None) == "user" and getattr(message, "content", None):
-            text = message.content.strip().replace("\n", " ")
-            return text[:60] + ("…" if len(text) > 60 else "")
-    return "New Trip"
-
-
-def _title_from_messages(messages: list[dict]) -> str:
-    """Derive a trip title from the first user turn of an AG-UI message list."""
-    for m in messages:
-        if m.get("role") == "user" and isinstance(m.get("content"), str) and m["content"].strip():
-            text = m["content"].strip().replace("\n", " ")
-            return text[:60] + ("…" if len(text) > 60 else "")
-    return "New Trip"
 
 
 def extract_display_messages(model_messages) -> list[dict]:
@@ -121,7 +120,11 @@ def health_check():
 
 
 @router.post("/api/copilotkit")
-async def copilotkit_endpoint(request: Request):
+async def copilotkit_endpoint(
+    request: Request,
+    trip_repo: TripRepository = Depends(get_trip_repository),
+    profile_repo: UserProfileRepository = Depends(get_profile_repository),
+):
     """AG-UI SSE streaming endpoint for CopilotKit frontend."""
     logger.info("Received request on /api/copilotkit")
     body = await request.body()
@@ -141,9 +144,6 @@ async def copilotkit_endpoint(request: Request):
     except Exception as e:
         logger.error(f"Error parsing AG-UI run input: {e}")
 
-    trip_repo = _trip_repository()
-    profile_repo = _profile_repository()
-
     # Layer conversation preferences on top of the stored global profile baseline.
     try:
         baseline = await profile_repo.get_preferences()
@@ -156,7 +156,7 @@ async def copilotkit_endpoint(request: Request):
     # Ensure a trip row exists for this thread so messages can be persisted.
     if thread_id:
         try:
-            await trip_repo.upsert_trip(thread_id, _derive_title(ag_messages))
+            await trip_repo.upsert_trip(thread_id, _title_from_messages(ag_messages))
         except Exception as e:
             logger.error(f"Error upserting trip {thread_id}: {e}")
 
@@ -225,21 +225,27 @@ def _serialize_trip(trip) -> dict:
 
 
 @router.get("/api/trips")
-async def list_trips():
-    trips = await _trip_repository().list_trips()
+async def list_trips(trip_repo: TripRepository = Depends(get_trip_repository)):
+    trips = await trip_repo.list_trips()
     return {"trips": [_serialize_trip(t) for t in trips]}
 
 
 @router.post("/api/trips")
-async def create_trip(payload: CreateTripRequest):
+async def create_trip(
+    payload: CreateTripRequest,
+    trip_repo: TripRepository = Depends(get_trip_repository),
+):
     trip_id = payload.id or str(uuid.uuid4())
-    trip = await _trip_repository().create_trip(trip_id, payload.title or "New Trip")
+    trip = await trip_repo.create_trip(trip_id, payload.title or "New Trip")
     return _serialize_trip(trip)
 
 
 @router.get("/api/trips/{trip_id}")
-async def get_trip(trip_id: str):
-    trip = await _trip_repository().get_trip(trip_id)
+async def get_trip(
+    trip_id: str,
+    trip_repo: TripRepository = Depends(get_trip_repository),
+):
+    trip = await trip_repo.get_trip(trip_id)
     if trip is None:
         raise HTTPException(status_code=404, detail="Trip not found")
     return {
@@ -261,22 +267,29 @@ class SaveMessagesRequest(BaseModel):
 
 
 @router.put("/api/trips/{trip_id}/messages")
-async def save_trip_messages(trip_id: str, payload: SaveMessagesRequest):
+async def save_trip_messages(
+    trip_id: str,
+    payload: SaveMessagesRequest,
+    trip_repo: TripRepository = Depends(get_trip_repository),
+):
     """Persist the full AG-UI message history for a trip (called by the client
     after each run so generative-UI cards survive a reload)."""
     title = payload.title or _title_from_messages(payload.messages)
-    await _trip_repository().save_message_history(trip_id, payload.messages, title=title)
+    await trip_repo.save_message_history(trip_id, payload.messages, title=title)
     return {"status": "ok", "id": trip_id, "count": len(payload.messages)}
 
 
 @router.get("/api/trips/{trip_id}/background.img")
-async def get_trip_background_image(trip_id: str):
+async def get_trip_background_image(
+    trip_id: str,
+    background_repo: TripBackgroundRepository = Depends(get_trip_background_repository),
+):
     """Serve a trip's generated vibe image, or 404 until it's ready.
 
     The frontend loads this directly in an <img> tag and hides the element on
     error, so a 404 (not generated yet / generation failed) degrades cleanly.
     """
-    row = await _trip_background_repository().get(trip_id)
+    row = await background_repo.get(trip_id)
     if row is None or row.status != "ready" or not row.image:
         raise HTTPException(status_code=404, detail="No background image")
     return Response(
@@ -287,8 +300,11 @@ async def get_trip_background_image(trip_id: str):
 
 
 @router.delete("/api/trips/{trip_id}")
-async def delete_trip(trip_id: str):
-    await _trip_repository().delete_trip(trip_id)
+async def delete_trip(
+    trip_id: str,
+    trip_repo: TripRepository = Depends(get_trip_repository),
+):
+    await trip_repo.delete_trip(trip_id)
     return {"status": "deleted", "id": trip_id}
 
 
@@ -319,7 +335,10 @@ def _serialize_saved(s) -> dict:
 
 
 @router.post("/api/saved-scenarios")
-async def save_scenario(payload: SaveScenarioRequest):
+async def save_scenario(
+    payload: SaveScenarioRequest,
+    saved_repo: SavedScenarioRepository = Depends(get_saved_scenario_repository),
+):
     # Fold the comparison-level destination/currency into the scenario payload so
     # the saved record is self-contained and queryable.
     scenario = dict(payload.scenario or {})
@@ -328,39 +347,53 @@ async def save_scenario(payload: SaveScenarioRequest):
     if payload.currency and not scenario.get("currency"):
         scenario["currency"] = payload.currency
 
-    saved = await _saved_scenario_repository().save(scenario=scenario, trip_id=payload.trip_id)
+    saved = await saved_repo.save(scenario=scenario, trip_id=payload.trip_id)
     return _serialize_saved(saved)
 
 
 @router.get("/api/saved-scenarios")
-async def list_saved_scenarios(trip_id: str | None = None):
-    saved = await _saved_scenario_repository().list_saved(trip_id=trip_id)
+async def list_saved_scenarios(
+    trip_id: str | None = None,
+    saved_repo: SavedScenarioRepository = Depends(get_saved_scenario_repository),
+):
+    saved = await saved_repo.list_saved(trip_id=trip_id)
     return {"saved": [_serialize_saved(s) for s in saved]}
 
 
 @router.get("/api/saved-scenarios/{saved_id}")
-async def get_saved_scenario(saved_id: int):
-    saved = await _saved_scenario_repository().get(saved_id)
+async def get_saved_scenario(
+    saved_id: int,
+    saved_repo: SavedScenarioRepository = Depends(get_saved_scenario_repository),
+):
+    saved = await saved_repo.get(saved_id)
     if saved is None:
         raise HTTPException(status_code=404, detail="Saved scenario not found")
     return _serialize_saved(saved)
 
 
 @router.delete("/api/saved-scenarios/{saved_id}")
-async def delete_saved_scenario(saved_id: int):
-    await _saved_scenario_repository().delete(saved_id)
+async def delete_saved_scenario(
+    saved_id: int,
+    saved_repo: SavedScenarioRepository = Depends(get_saved_scenario_repository),
+):
+    await saved_repo.delete(saved_id)
     return {"status": "deleted", "id": saved_id}
 
 
 # --- Global user profile -------------------------------------------------------
 
 @router.get("/api/profile")
-async def get_profile():
-    prefs = await _profile_repository().get_preferences()
+async def get_profile(
+    profile_repo: UserProfileRepository = Depends(get_profile_repository),
+):
+    prefs = await profile_repo.get_preferences()
     return prefs.model_dump()
 
 
 @router.put("/api/profile")
-async def update_profile(preferences: UserPreferences):
-    await _profile_repository().save_preferences(preferences)
+async def update_profile(
+    preferences: UserPreferences,
+    profile_repo: UserProfileRepository = Depends(get_profile_repository),
+):
+    await profile_repo.save_preferences(preferences)
     return preferences.model_dump()

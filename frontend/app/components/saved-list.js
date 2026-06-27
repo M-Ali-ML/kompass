@@ -4,18 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Bookmark, Trash2, Loader2 } from "lucide-react";
 import { listSavedScenarios, deleteSavedScenario } from "../lib/trips-api";
 import { formatPrice } from "../lib/format";
-import { ScenarioDetailModal } from "./tool-cards/scenario-comparison-card";
+import { fmtDay } from "../lib/itinerary";
+import { ScenarioDetailModal } from "./tool-cards/scenario-detail-modal";
 
 const stressDot = (score) =>
   score <= 2 ? "bg-emerald-400" : score === 3 ? "bg-amber-400" : "bg-rose-400";
-
-const fmtDay = (iso) => {
-  if (!iso) return "";
-  const d = new Date(`${iso}T00:00:00`);
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
-};
 
 const fmtRange = (start, end) => {
   const a = fmtDay(start);
