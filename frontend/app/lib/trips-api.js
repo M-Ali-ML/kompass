@@ -78,3 +78,23 @@ export async function deleteSavedScenario(savedId) {
   const res = await fetch(`${API_BASE}/api/saved-scenarios/${savedId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
+
+// --- Global user profile -----------------------------------------------------
+
+// The singleton UserPreferences baseline applied to every trip. The agent's
+// `gather_preferences` tool also writes here; the settings UI is a manual editor.
+export async function getProfile() {
+  const res = await fetch(`${API_BASE}/api/profile`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function updateProfile(preferences) {
+  const res = await fetch(`${API_BASE}/api/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(preferences),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}

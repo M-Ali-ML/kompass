@@ -43,16 +43,36 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [chatError]);
 
-  // The map panel only shows on wide screens; below that the chat-side scenario
-  // cards are the experience. We conditionally render the panel (rather than
-  // CSS-hide it) so react-resizable-panels doesn't reserve space for it.
-  const showMap = useMediaQuery("(min-width: 1024px)");
+  // Desktop (lg+) gets the full three-pane split. Below that, the chat is
+  // full-width, the map is hidden (chat-side cards are the experience), and the
+  // trip sidebar collapses into an off-canvas drawer reached via the header
+  // hamburger. We conditionally render panels (rather than CSS-hide) so
+  // react-resizable-panels doesn't reserve space for them.
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Persist the user's drag-resized layout per variant (with/without map).
+  // The drawer is only rendered while `!isDesktop`, so growing into the desktop
+  // layout hides it automatically — no effect needed to force it closed.
+
+  // On mobile, picking/creating a trip should close the drawer so the chat shows.
+  const selectTrip = useCallback(
+    (id) => {
+      handleSelectTrip(id);
+      setDrawerOpen(false);
+    },
+    [handleSelectTrip]
+  );
+  const newTrip = useCallback(() => {
+    handleNewTrip();
+    setDrawerOpen(false);
+  }, [handleNewTrip]);
+
+  // Persist the user's drag-resized desktop layout.
   const groupRef = useRef(null);
-  const storageKey = showMap ? "kompass-layout-map:v2" : "kompass-layout:v2";
+  const storageKey = "kompass-layout-map:v2";
 
   useEffect(() => {
+    if (!isDesktop) return;
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (raw && groupRef.current?.setLayout) {
@@ -61,7 +81,7 @@ export default function Home() {
     } catch {
       // Ignore malformed/missing saved layouts — defaults apply.
     }
-  }, [storageKey]);
+  }, [storageKey, isDesktop]);
 
   const handleLayoutChanged = useCallback(
     (layout) => {
@@ -77,72 +97,105 @@ export default function Home() {
   // Register the generative-UI renderers for each agent tool.
   useTripTools();
 
+  const sidebar = (
+    <TripSidebar
+      activeThreadId={activeThreadId}
+      onNewTrip={newTrip}
+      onSelectTrip={selectTrip}
+      reloadKey={reloadKey}
+    />
+  );
+
+  // V2 CopilotChat — native reasoning support via AG-UI protocol. Messages are
+  // driven by the shared agent instance; resuming a trip calls
+  // agent.setMessages(...) and the chat re-renders in place.
+  const chatPanel = (
+    <div className="relative h-full">
+      {chatError && (
+        <div className="absolute inset-x-3 top-3 z-10 flex items-start gap-2 rounded-2xl bg-rose-50 border border-rose-200 px-3.5 py-2.5 pink-shadow">
+          <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+          <p className="flex-1 text-xs text-rose-700/90 leading-relaxed">{chatError}</p>
+          <button
+            type="button"
+            onClick={() => setChatError(null)}
+            aria-label="Dismiss"
+            className="text-rose-400 hover:text-rose-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      <CopilotChat
+        className="h-full"
+        onError={handleChatError}
+        chatView={CHAT_VIEW_SLOTS}
+        labels={{
+          title: "Kompass Travel Assistant",
+          placeholder: "Where do you want to go?",
+        }}
+      />
+    </div>
+  );
+
   return (
     <MapStateProvider>
       <div className="flex flex-col h-screen overflow-hidden bg-background">
-        <AppHeader />
+        <AppHeader showMenu={!isDesktop} onMenuClick={() => setDrawerOpen(true)} />
 
-        {/* Three resizable panes (history | chat | map) with draggable
-            dividers. Sizes persist per-layout in localStorage. */}
-        <Group
-          key={storageKey}
-          groupRef={groupRef}
-          orientation="horizontal"
-          onLayoutChanged={handleLayoutChanged}
-          className="flex-1 overflow-hidden"
-        >
-          <Panel id="sidebar" defaultSize="18%" minSize="12%" maxSize="32%">
-            <TripSidebar
-              activeThreadId={activeThreadId}
-              onNewTrip={handleNewTrip}
-              onSelectTrip={handleSelectTrip}
-              reloadKey={reloadKey}
+        {isDesktop ? (
+          /* Three resizable panes (history | chat | map) with draggable
+             dividers. Sizes persist in localStorage. */
+          <Group
+            key={storageKey}
+            groupRef={groupRef}
+            orientation="horizontal"
+            onLayoutChanged={handleLayoutChanged}
+            className="flex-1 overflow-hidden"
+          >
+            <Panel id="sidebar" defaultSize="18%" minSize="12%" maxSize="32%">
+              {sidebar}
+            </Panel>
+
+            <ResizeHandle />
+
+            <Panel id="chat" minSize="25%" className="min-w-0">
+              {chatPanel}
+            </Panel>
+
+            <ResizeHandle />
+
+            {/* Right split-panel: itinerary summary + interactive trip map. */}
+            <Panel id="map" defaultSize="34%" minSize="20%" maxSize="55%">
+              <TripPanel />
+            </Panel>
+          </Group>
+        ) : (
+          /* Mobile/tablet: full-width chat; trips live in an off-canvas drawer. */
+          <div className="flex-1 min-h-0 overflow-hidden">{chatPanel}</div>
+        )}
+
+        {/* Off-canvas trip drawer (mobile only). Kept mounted so it can slide
+            in/out; backdrop closes it. */}
+        {!isDesktop && (
+          <div
+            className={`fixed inset-0 z-50 ${drawerOpen ? "" : "pointer-events-none"}`}
+            aria-hidden={!drawerOpen}
+          >
+            <div
+              onClick={() => setDrawerOpen(false)}
+              className={`absolute inset-0 bg-foreground/40 backdrop-blur-sm transition-opacity duration-300 ${
+                drawerOpen ? "opacity-100" : "opacity-0"
+              }`}
             />
-          </Panel>
-
-          <ResizeHandle />
-
-          {/* V2 CopilotChat — native reasoning support via AG-UI protocol.
-              Messages are driven by the shared agent instance; resuming a trip
-              calls agent.setMessages(...) and the chat re-renders in place. */}
-          <Panel id="chat" minSize="25%" className="min-w-0">
-            <div className="relative h-full">
-              {chatError && (
-                <div className="absolute inset-x-3 top-3 z-10 flex items-start gap-2 rounded-2xl bg-rose-50 border border-rose-200 px-3.5 py-2.5 pink-shadow">
-                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                  <p className="flex-1 text-xs text-rose-700/90 leading-relaxed">{chatError}</p>
-                  <button
-                    type="button"
-                    onClick={() => setChatError(null)}
-                    aria-label="Dismiss"
-                    className="text-rose-400 hover:text-rose-600 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-              <CopilotChat
-                className="h-full"
-                onError={handleChatError}
-                chatView={CHAT_VIEW_SLOTS}
-                labels={{
-                  title: "Kompass Travel Assistant",
-                  placeholder: "Where do you want to go?",
-                }}
-              />
+            <div
+              className={`absolute inset-y-0 left-0 w-[82%] max-w-xs transition-transform duration-300 ease-out ${
+                drawerOpen ? "translate-x-0" : "-translate-x-full"
+              }`}
+            >
+              {sidebar}
             </div>
-          </Panel>
-
-          {showMap && (
-            <>
-              <ResizeHandle />
-              {/* Right split-panel: itinerary summary + interactive trip map. */}
-              <Panel id="map" defaultSize="34%" minSize="20%" maxSize="55%">
-                <TripPanel />
-              </Panel>
-            </>
-          )}
-        </Group>
+          </div>
+        )}
       </div>
     </MapStateProvider>
   );

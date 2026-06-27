@@ -65,15 +65,20 @@ export function CostBar({ icon: Icon, label, amount, total, currency, barClass }
   );
 }
 
-export function DayRow({ day, defaultOpen }) {
-  const [open, setOpen] = useState(defaultOpen);
+// `open`/`onToggle` make the row controllable (e.g. an "Expand all" toggle in
+// the modal); when omitted the row manages its own open state from `defaultOpen`.
+export function DayRow({ day, defaultOpen, open: openProp, onToggle }) {
+  const [openInner, setOpenInner] = useState(defaultOpen);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openInner;
+  const toggle = () => (controlled ? onToggle?.() : setOpenInner((o) => !o));
   const schedule = day.schedule || [];
   const headline = day.title || day.description;
   return (
     <div className="rounded-xl border border-pink-100 bg-surface overflow-hidden">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-pink-50/60"
       >
         <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-white text-xs font-bold shrink-0">

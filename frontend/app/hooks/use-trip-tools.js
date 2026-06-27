@@ -1,5 +1,6 @@
-import { useRenderTool } from "@copilotkit/react-core/v2";
+import { useRenderTool, useHumanInTheLoop } from "@copilotkit/react-core/v2";
 import { PreferencesCard, preferencesParameters } from "../components/tool-cards/preferences-card";
+import { ClarifyCard, clarifyParameters } from "../components/tool-cards/clarify-card";
 import { CheapestDatesCard, cheapestDatesParameters } from "../components/tool-cards/cheapest-dates-card";
 import { FlightsCard, flightsParameters } from "../components/tool-cards/flights-card";
 import {
@@ -60,5 +61,20 @@ export function useTripTools() {
     name: "generate_scenarios",
     parameters: scenarioComparisonParameters,
     render: (props) => <ScenarioComparisonCard {...props} />,
+  });
+
+  // Human-in-the-loop: the agent calls this when it needs more info. The run
+  // pauses on the card until the traveler picks an option or types an answer
+  // (respond), then resumes. Defined as a frontend tool, so PydanticAI's AG-UI
+  // adapter exposes it to the agent automatically — no backend tool code.
+  useHumanInTheLoop({
+    name: "ask_clarifying_question",
+    description:
+      "Ask the traveler ONE focused clarifying question when required trip info is " +
+      "missing or ambiguous. Provide 2-4 concrete `options`; the traveler may also " +
+      "type a free-text answer. Set `allow_multiple` when several options can be " +
+      "chosen. Returns the traveler's answer as text.",
+    parameters: clarifyParameters,
+    render: (props) => <ClarifyCard {...props} />,
   });
 }

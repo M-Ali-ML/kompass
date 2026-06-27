@@ -61,6 +61,15 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
   const backdropTripId = tripId || agent?.threadId;
   const [saveState, setSaveState] = useState("idle");
   const [removeState, setRemoveState] = useState("idle");
+  // Track which day rows are expanded. Day 1 starts open; "Expand all" opens the rest.
+  const [openDays, setOpenDays] = useState(() => new Set([0]));
+
+  const toggleDay = (i) =>
+    setOpenDays((prev) => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
 
   const handleViewOnMap = () => {
     setActiveRoute(routeFromScenario(scenario, { destination, currency }));
@@ -116,6 +125,7 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
   const legs = it.legs || [];
   const stays = it.accommodations || [];
   const days = it.days || [];
+  const allDaysOpen = days.length > 0 && openDays.size >= days.length;
   const highlights = scenario.highlights || [];
   const tone = stressTone(scenario.stress_score);
   const total = cb.grand_total || 0;
@@ -129,10 +139,10 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
   const returnMin = journeys.length > 1 ? journeyMinutes(journeys[journeys.length - 1]) : 0;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-[640px] max-h-[88vh] flex flex-col rounded-3xl bg-surface pink-shadow-deep overflow-hidden">
+      <div className="relative w-full max-w-[640px] max-h-[92vh] sm:max-h-[88vh] flex flex-col rounded-t-3xl sm:rounded-3xl bg-surface pink-shadow-deep overflow-hidden">
         {/* Header */}
         <div className="relative overflow-hidden px-5 pt-5 pb-3 min-h-[104px] flex flex-col justify-end border-b border-pink-100">
           <TripBackdrop tripId={backdropTripId} fade="bottom" />
@@ -383,10 +393,29 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
           {/* Day-by-day */}
           {days.length > 0 && (
             <section>
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground/70 mb-2">Itinerary highlights</h3>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground/70">
+                  Day-by-day itinerary
+                  <span className="ml-1.5 text-foreground/40">{days.length} days</span>
+                </h3>
+                {days.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenDays(allDaysOpen ? new Set() : new Set(days.map((_, i) => i)))}
+                    className="text-[11px] font-bold text-primary hover:underline"
+                  >
+                    {allDaysOpen ? "Collapse all" : "Expand all"}
+                  </button>
+                )}
+              </div>
               <div className="flex flex-col gap-2">
                 {days.map((d, i) => (
-                  <DayRow key={i} day={d} defaultOpen={i === 0} />
+                  <DayRow
+                    key={i}
+                    day={d}
+                    open={openDays.has(i)}
+                    onToggle={() => toggleDay(i)}
+                  />
                 ))}
               </div>
             </section>
