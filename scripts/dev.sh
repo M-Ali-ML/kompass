@@ -120,7 +120,9 @@ if [ "$PROD" = true ]; then
     npm run start >> "$LOG_FILE" 2>&1 &
 else
     echo -e "${BLUE}Starting Frontend (Next.js on port 3000)...${NC}"
-    npm run dev >> "$LOG_FILE" 2>&1 &
+    # Use a dev-only build dir so `next dev` never shares `.next` with a prior
+    # `next build` (mixing prod/dev artifacts caused stale 404s on cold start).
+    NEXT_DIST_DIR=.next-dev npm run dev >> "$LOG_FILE" 2>&1 &
 fi
 FE_PID=$!
 
