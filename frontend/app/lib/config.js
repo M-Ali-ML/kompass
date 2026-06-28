@@ -1,7 +1,10 @@
 // Single source of truth for the CopilotKit endpoint and the API origin.
-// The API base is derived by stripping the CopilotKit path so trip endpoints
-// (e.g. /api/trips) hit the same backend origin.
+// Default to a SAME-ORIGIN relative path so the browser hits whatever host
+// served the page (localhost, a LAN IP like 192.168.x.x, etc.) and Next's
+// `/api/:path*` rewrite proxies it to the backend server-side. This keeps the
+// app reachable from other devices on the network without CORS headaches.
+// Override with NEXT_PUBLIC_COPILOTKIT_ENDPOINT for a custom backend origin.
 export const COPILOTKIT_ENDPOINT =
-  process.env.NEXT_PUBLIC_COPILOTKIT_ENDPOINT || "http://localhost:8000/api/copilotkit";
+  process.env.NEXT_PUBLIC_COPILOTKIT_ENDPOINT || "/api/copilotkit";
 
 export const API_BASE = COPILOTKIT_ENDPOINT.replace(/\/api\/copilotkit\/?$/, "");

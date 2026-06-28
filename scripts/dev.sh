@@ -12,7 +12,20 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}=== Kompass Dev Environment Startup ===${NC}"
+# Mode: dev by default. Pass -p (or --prod) to run a production build instead.
+PROD=false
+for arg in "$@"; do
+    case "$arg" in
+        -p|--prod) PROD=true ;;
+        *) echo -e "${YELLOW}Unknown argument: $arg (ignored)${NC}" ;;
+    esac
+done
+
+if [ "$PROD" = true ]; then
+    echo -e "${BLUE}=== Kompass PROD Environment Startup ===${NC}"
+else
+    echo -e "${BLUE}=== Kompass Dev Environment Startup ===${NC}"
+fi
 
 port_in_use() {
     lsof -i :"$1" >/dev/null 2>&1
@@ -84,15 +97,31 @@ trap cleanup SIGINT SIGTERM EXIT
 echo "=== Kompass Dev Session Started at $(date) ===" > "$LOG_FILE"
 
 # Start Backend
-echo -e "${BLUE}Starting Backend (uvicorn on port 8000)...${NC}"
 cd "$PROJECT_ROOT/backend" || exit 1
-uv run uvicorn app.main:app --reload >> "$LOG_FILE" 2>&1 &
+if [ "$PROD" = true ]; then
+    echo -e "${BLUE}Starting Backend (uvicorn on port 8000, no reload)...${NC}"
+    uv run uvicorn app.main:app >> "$LOG_FILE" 2>&1 &
+else
+    echo -e "${BLUE}Starting Backend (uvicorn on port 8000)...${NC}"
+    uv run uvicorn app.main:app --reload >> "$LOG_FILE" 2>&1 &
+fi
 BE_PID=$!
 
 # Start Frontend
-echo -e "${BLUE}Starting Frontend (Next.js on port 3000)...${NC}"
 cd "$PROJECT_ROOT/frontend" || exit 1
-npm run dev >> "$LOG_FILE" 2>&1 &
+if [ "$PROD" = true ]; then
+    echo -e "${BLUE}Building Frontend (next build)...${NC}"
+    npm run build >> "$LOG_FILE" 2>&1
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Frontend build failed. See $LOG_FILE for details.${NC}"
+        exit 1
+    fi
+    echo -e "${BLUE}Starting Frontend (Next.js prod on port 3000)...${NC}"
+    npm run start >> "$LOG_FILE" 2>&1 &
+else
+    echo -e "${BLUE}Starting Frontend (Next.js on port 3000)...${NC}"
+    npm run dev >> "$LOG_FILE" 2>&1 &
+fi
 FE_PID=$!
 
 echo -e "${GREEN}Both servers are starting up in the background.${NC}"
