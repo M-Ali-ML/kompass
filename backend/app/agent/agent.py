@@ -3,7 +3,6 @@ import calendar
 import logging
 from collections import Counter
 from datetime import date, datetime
-from typing import Union
 from pydantic_ai import Agent, RunContext
 from app.config import settings
 from app.agent.dependency import AgentDependencies
@@ -65,15 +64,19 @@ def _day_fingerprint(day) -> tuple:
 llm_model = settings.llm_model
 
 # Define the PydanticAI Agent
-# Retry budgets (per pydantic-ai `retries`): give the output path a few attempts
-# so a transient empty/invalid final completion is retried — with the error left
-# in context so the model can recover, rather than crashing the whole turn.
-# `tools` covers tool-output validation.
+# The agent's own final output is ALWAYS plain text: travel plans are delivered
+# through the `generate_scenarios` tool (which renders the scenario cards) and
+# every other reply is conversational text. Keeping `output_type=str` — rather
+# than a `Union[str, Scenario]` — avoids registering a second `final_result`
+# output tool that would re-ship the full nested Scenario JSON schema (~2k
+# tokens) on every request for a structured-output path the app never renders.
+# `retries={'tools': 2}` covers tool-output validation (e.g. generate_scenarios
+# re-calls on an incomplete day plan).
 kompass_agent = Agent(
     llm_model,
     deps_type=AgentDependencies,
-    output_type=Union[str, Scenario],
-    retries={'tools': 2, 'output': 3},
+    output_type=str,
+    retries={'tools': 2},
     # Low temperature for more deterministic, instruction-following behavior —
     # in particular, reliably calling `ask_clarifying_question` for concrete
     # questions rather than drifting into plain-text prose. (Merged with the
@@ -330,33 +333,31 @@ async def generate_scenarios(
     scenarios: list[Scenario],
     estimated: bool = False,
 ) -> dict:
-    """Present 2-3 fully-formed travel scenarios for side-by-side comparison.
+    """Render fully-formed travel scenarios as cards (1 single plan, or 2-3 to compare).
 
     Build each `Scenario` yourself first — research real prices and dates with
     `search_web` / `find_cheapest_dates` / `search_flights`, assemble the
     itineraries, compute each `cost_breakdown`, and assess each `stress_score`
     from its `stress_factors`. Then call this tool **once** with the complete
-    list to render a comparison view. Provide 2 or 3 scenarios that differ on
-    date window, price, and/or stress so the traveler has a meaningful choice.
+    list. Pass a single scenario to present one definitive plan (renders as one
+    card), or 2-3 scenarios that differ on date window, price, and/or stress
+    when the traveler is choosing between options. ALWAYS deliver the plan
+    through this tool — never type the itinerary out as text.
 
     Args:
-        destination: The destination being compared (e.g. 'Santorini').
-        scenarios: The complete list of 2-3 `Scenario` objects to compare.
+        destination: The destination being planned/compared (e.g. 'Santorini').
+        scenarios: The complete list of 1-3 `Scenario` objects to render.
         estimated: True if any prices are approximate because live data was
             unavailable (surfaces an "≈ approx" badge to the traveler).
     """
-    # The comparison view is only meaningful with at least two options. Reject a
-    # single scenario with a corrective message so the agent re-calls once with
-    # the full set rather than rendering a lone card.
-    if len(scenarios) < 2:
-        logger.warning(
-            f"generate_scenarios called with {len(scenarios)} scenario(s); requesting 2-3."
-        )
+    # At least one scenario is required to render anything. (A single scenario is
+    # valid — it renders as one card; 2-3 render side-by-side for comparison.)
+    if not scenarios:
+        logger.warning("generate_scenarios called with no scenarios.")
         return {
             "error": (
-                f"generate_scenarios needs 2-3 distinct scenarios for a side-by-side "
-                f"comparison, but you provided {len(scenarios)}. Re-call this tool ONCE "
-                "with 2 or 3 scenarios that differ on date window, price, and/or stress."
+                "generate_scenarios needs at least one fully-built Scenario to render. "
+                "Build the plan and call this tool again — never present it as text."
             ),
             "scenarios": [],
         }
@@ -366,15 +367,26 @@ async def generate_scenarios(
     #      "highlight" days (a 12-day trip with 8 entries).
     #   2. Padded days — to satisfy a day count the model repeats identical
     #      filler entries (e.g. "Return to Berlin" three times).
-    # Reject (bounded by `day_validation_retries`, so two corrections at most:
-    # one for each mode, then accept whatever comes back) with a corrective note.
+    # Both checks apply in every mode: each day needs its own entry (count) and
+    # every entry must be DISTINCT (no padding). Detail (how rich each day's
+    # schedule is) is scaled to scenario count in the system prompt — full plans
+    # for a single scenario, lighter skeletons for a 2-3 way comparison — but a
+    # skeleton day is thinner, NOT a duplicate: it still needs a distinct title
+    # and description, so the padding guard stays strict here regardless of mode.
+    # When we DO reject a comparison, the error coaches the model that skeletons
+    # are fine as long as each day is distinct. Bounded by `day_validation_retries`
+    # (two corrections at most: one per mode, then accept whatever comes back).
     if ctx.deps.day_validation_retries < 2:
+        comparison_mode = len(scenarios) > 1
         problems = []
         for s in scenarios:
             label = s.comparison_label or s.label
             nights = (s.end_date - s.start_date).days
             have = len(s.itinerary.days)
-            if nights >= 3 and have < nights:
+            # Allow a ±1 tolerance so a days-vs-nights off-by-one (e.g. 8 entries
+            # for a 9-night window) doesn't trigger a full regeneration; only
+            # reject when the plan is materially short of the trip span.
+            if nights >= 3 and have < nights - 1:
                 problems.append(f"'{label}' has only {have}/{nights} days")
                 continue
             counts = Counter(_day_fingerprint(d) for d in s.itinerary.days)
@@ -389,6 +401,13 @@ async def generate_scenarios(
             ctx.deps.day_validation_retries += 1
             detail = "; ".join(problems)
             logger.warning(f"generate_scenarios rejected — day plan issues: {detail}")
+            skeleton_note = (
+                " For a side-by-side comparison the days can be light skeletons "
+                "(distinct title + one-line description, schedule short or empty), "
+                "but each day still needs its own DISTINCT entry — no repeats."
+                if comparison_mode
+                else ""
+            )
             return {
                 "error": (
                     "Each scenario needs one DISTINCT DaySummary for EVERY day of the "
@@ -397,7 +416,7 @@ async def generate_scenarios(
                     "real, distinct entry for each day_number from 1 to the trip length "
                     "(no repeated/placeholder days). If the trip is shorter than the "
                     "date window implies, shorten start_date/end_date to match the "
-                    "actual trip length rather than padding with filler days."
+                    f"actual trip length rather than padding with filler days.{skeleton_note}"
                 ),
                 "scenarios": [],
             }
