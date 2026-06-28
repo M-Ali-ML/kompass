@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kompass — The Whole Flow, Piece by Piece</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800;1,9..40,500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#fef7ff;
+    --bg-soft:#fdeffb;
+    --ink:#3a2440;
+    --ink-soft:#7a6385;
+    --pink:#e040a0;
+    --pink-soft:#fbe0f1;
+    --purple:#7c52aa;
+    --purple-soft:#ece1f7;
+    --blue:#0096cc;
+    --blue-soft:#dcf1fb;
+    --green:#16a06a;
+    --amber:#e89b1c;
+    --card:#ffffff;
+    --line:#f1d9ec;
+    --shadow-pink:0 14px 40px -18px rgba(224,64,160,.45);
+    --shadow-purple:0 14px 40px -18px rgba(124,82,170,.45);
+    --shadow-blue:0 14px 40px -18px rgba(0,150,204,.40);
+    --shadow-soft:0 10px 30px -16px rgba(124,82,170,.30);
+    --r:20px;
+    --spring:cubic-bezier(.34,1.56,.64,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'DM Sans',system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 85% -10%, var(--pink-soft), transparent 55%),
+      radial-gradient(1000px 600px at -10% 10%, var(--blue-soft), transparent 50%),
+      var(--bg);
+    color:var(--ink);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:80px;
+  }
+  code,.mono{font-family:'DM Mono',ui-monospace,monospace}
+  a{color:var(--pink);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ---------- NAV ---------- */
+  .nav{
+    position:sticky;top:0;z-index:50;
+    backdrop-filter:saturate(160%) blur(14px);
+    background:rgba(254,247,255,.78);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-inner{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:12px 22px}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:18px;letter-spacing:-.3px}
+  .compass{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--pink),var(--purple));box-shadow:var(--shadow-pink);color:#fff;
+    animation:spin 14s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .nav-links{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+  .nav-links a{
+    font-size:13.5px;font-weight:600;color:var(--ink-soft);
+    padding:7px 13px;border-radius:999px;transition:.2s}
+  .nav-links a:hover{color:var(--purple);background:var(--purple-soft);text-decoration:none}
+  .nav-links a.active{color:#fff;background:linear-gradient(135deg,var(--pink),var(--purple))}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+  section{scroll-margin-top:84px;padding:64px 0 22px}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--pink);background:var(--pink-soft);padding:6px 13px;border-radius:999px}
+  h2{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;margin:16px 0 8px;font-weight:800}
+  .lead{font-size:17px;color:var(--ink-soft);max-width:760px}
+  h3{font-size:19px;font-weight:700;letter-spacing:-.3px}
+
+  /* ---------- HERO ---------- */
+  .hero{padding:60px 0 12px;text-align:center}
+  .hero h1{font-size:clamp(38px,7vw,72px);line-height:1.02;letter-spacing:-2.5px;font-weight:800;margin:22px 0 16px}
+  .hero h1 .grad{background:linear-gradient(115deg,var(--pink),var(--purple) 55%,var(--blue));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{font-size:19px;color:var(--ink-soft);max-width:680px;margin:0 auto 26px}
+  .hero-chips{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:18px}
+  .chip{font-size:13px;font-weight:600;padding:8px 15px;border-radius:999px;background:var(--card);
+    border:1px solid var(--line);box-shadow:var(--shadow-soft)}
+  .chip b{color:var(--purple)}
+  .scroll-cue{margin-top:18px;font-size:13px;color:var(--ink-soft);animation:bob 1.8s var(--spring) infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+
+  /* ---------- ARCHITECTURE MAP ---------- */
+  .lanes{display:grid;grid-template-columns:1fr;gap:14px;margin-top:30px}
+  .lane{position:relative;border-radius:var(--r);padding:18px;background:var(--card);
+    border:1px solid var(--line);box-shadow:var(--shadow-soft)}
+  .lane-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .lane-tag{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#fff;
+    padding:5px 11px;border-radius:999px}
+  .lane-sub{font-size:13px;color:var(--ink-soft)}
+  .l-front .lane-tag{background:var(--pink)} .l-front{box-shadow:var(--shadow-pink)}
+  .l-api .lane-tag{background:var(--purple)}
+  .l-agent .lane-tag{background:var(--blue)}
+  .l-ext .lane-tag{background:var(--green)}
+  .nodes{display:flex;gap:10px;flex-wrap:wrap}
+  .node{cursor:pointer;border:1.5px solid var(--line);background:var(--bg-soft);border-radius:14px;
+    padding:11px 14px;font-size:13.5px;font-weight:600;transition:.22s var(--spring);position:relative;flex:1 1 auto;min-width:130px}
+  .node small{display:block;font-weight:500;color:var(--ink-soft);font-size:11.5px;margin-top:2px}
+  .node:hover{transform:translateY(-3px) scale(1.02);border-color:var(--pink);box-shadow:var(--shadow-pink)}
+  .node.sel{border-color:var(--purple);background:#fff;box-shadow:var(--shadow-purple)}
+  .flow-arrow{display:flex;justify-content:center;color:var(--purple);opacity:.6;font-size:22px;line-height:1}
+  .node-detail{margin-top:16px;border-radius:var(--r);padding:18px 20px;background:linear-gradient(180deg,var(--purple-soft),#fff);
+    border:1px solid var(--line);min-height:96px}
+  .node-detail h4{font-size:16px;margin-bottom:4px}
+  .node-detail p{font-size:14.5px;color:var(--ink-soft)}
+  .node-detail .files{margin-top:9px;display:flex;gap:7px;flex-wrap:wrap}
+  .file-pill{font-size:11.5px;font-weight:500;background:#fff;border:1px solid var(--line);border-radius:8px;padding:3px 9px;color:var(--purple)}
+
+  /* ---------- FLOW PLAYER ---------- */
+  .player{display:grid;grid-template-columns:300px 1fr;gap:22px;margin-top:28px}
+  .steps-rail{display:flex;flex-direction:column;gap:8px}
+  .step-btn{display:flex;gap:12px;align-items:flex-start;text-align:left;cursor:pointer;border:1px solid var(--line);
+    background:var(--card);border-radius:15px;padding:12px 14px;transition:.2s var(--spring);font:inherit;color:inherit;width:100%}
+  .step-btn:hover{transform:translateX(3px);border-color:var(--pink)}
+  .step-btn.active{border-color:transparent;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;box-shadow:var(--shadow-purple)}
+  .step-btn.active .s-num{background:rgba(255,255,255,.25);color:#fff}
+  .step-btn.active .s-sub{color:rgba(255,255,255,.85)}
+  .step-btn.done .s-num{background:var(--green);color:#fff}
+  .s-num{flex:0 0 28px;height:28px;border-radius:9px;display:grid;place-items:center;font-weight:800;font-size:13px;
+    background:var(--purple-soft);color:var(--purple);transition:.2s}
+  .s-t{font-weight:700;font-size:14px;line-height:1.25}
+  .s-sub{font-size:12px;color:var(--ink-soft);margin-top:1px}
+
+  .stage{border-radius:var(--r);border:1px solid var(--line);background:var(--card);box-shadow:var(--shadow-soft);
+    padding:22px 24px;min-height:430px;display:flex;flex-direction:column}
+  .stage-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .layer-badge{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:5px 11px;border-radius:999px}
+  .lb-front{background:var(--pink-soft);color:var(--pink)}
+  .lb-api{background:var(--purple-soft);color:var(--purple)}
+  .lb-agent{background:var(--blue-soft);color:var(--blue)}
+  .lb-ext{background:#dcf7ea;color:var(--green)}
+  .stage h3{font-size:23px;letter-spacing:-.5px}
+  .stage .narr{font-size:15.5px;color:var(--ink-soft);margin:8px 0 4px}
+
+  /* mini-arch strip */
+  .strip{display:flex;align-items:stretch;gap:0;margin:16px 0 6px;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+  .strip div{flex:1;text-align:center;font-size:11px;font-weight:700;padding:9px 6px;color:var(--ink-soft);
+    background:var(--bg-soft);transition:.3s;letter-spacing:.02em}
+  .strip div.lit{color:#fff}
+  .strip div.lit.f{background:var(--pink)}
+  .strip div.lit.a{background:var(--purple)}
+  .strip div.lit.g{background:var(--blue)}
+  .strip div.lit.e{background:var(--green)}
+
+  .snippet{margin-top:14px;background:#2c1b33;border-radius:14px;padding:15px 17px;overflow:auto;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+  .snippet pre{font-family:'DM Mono',monospace;font-size:12.8px;line-height:1.65;color:#f3e7f7;white-space:pre}
+  .snippet .c{color:#c79bdc} .snippet .k{color:#ff9ecf} .snippet .s{color:#9ad7ff} .snippet .m{color:#9fe6c0}
+  .files{margin-top:auto;padding-top:16px;display:flex;gap:7px;flex-wrap:wrap}
+
+  .player-ctrls{display:flex;gap:10px;align-items:center;margin-top:30px;flex-wrap:wrap}
+  .btn{cursor:pointer;font:inherit;font-weight:700;font-size:14px;border:none;border-radius:999px;padding:11px 20px;transition:.2s var(--spring)}
+  .btn-primary{background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;box-shadow:var(--shadow-pink)}
+  .btn-primary:hover{transform:translateY(-2px) scale(1.03)}
+  .btn-ghost{background:var(--card);border:1px solid var(--line);color:var(--purple)}
+  .btn-ghost:hover{border-color:var(--purple)}
+  .progress-track{flex:1;min-width:120px;height:9px;border-radius:999px;background:var(--pink-soft);overflow:hidden}
+  .progress-fill{height:100%;width:10%;border-radius:999px;background:linear-gradient(90deg,var(--pink),var(--purple),var(--blue));
+    transition:width .4s var(--spring)}
+
+  /* ---------- TOOLBELT ---------- */
+  .grid{display:grid;gap:14px;margin-top:26px}
+  .g-tools{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+  .tool{border:1px solid var(--line);background:var(--card);border-radius:var(--r);padding:17px 18px;
+    box-shadow:var(--shadow-soft);transition:.22s var(--spring);cursor:pointer}
+  .tool:hover{transform:translateY(-4px);box-shadow:var(--shadow-purple)}
+  .tool-top{display:flex;align-items:center;gap:11px;margin-bottom:9px}
+  .tool-ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:19px;flex:0 0 auto}
+  .tool-name{font-family:'DM Mono',monospace;font-weight:500;font-size:13.5px;color:var(--ink)}
+  .tool .src{font-size:11.5px;font-weight:700;color:var(--ink-soft)}
+  .tool p{font-size:13.5px;color:var(--ink-soft);margin-top:4px}
+  .tool .extra{font-size:13px;color:var(--ink-soft);margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);
+    display:none}
+  .tool.open .extra{display:block}
+  .tool .extra b{color:var(--purple)}
+  .tag-card{display:inline-block;font-size:11px;font-weight:600;color:var(--pink);background:var(--pink-soft);
+    border-radius:7px;padding:2px 8px;margin-top:7px}
+
+  /* ---------- SOURCES ---------- */
+  .g-src{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .src-card{border:1px solid var(--line);background:var(--card);border-radius:var(--r);padding:18px;box-shadow:var(--shadow-soft)}
+  .src-card .badge{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:4px 10px;border-radius:999px;display:inline-block;margin-bottom:10px}
+  .src-card h4{font-size:16px;margin-bottom:5px}
+  .src-card p{font-size:13.5px;color:var(--ink-soft)}
+  .notice{margin-top:18px;display:flex;gap:13px;align-items:flex-start;border-radius:var(--r);padding:16px 18px;
+    background:linear-gradient(135deg,#fff,var(--blue-soft));border:1px solid var(--line)}
+  .notice .ico{font-size:24px}
+  .notice b{color:var(--blue)}
+
+  /* ---------- CARDS GALLERY ---------- */
+  .g-cards{grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
+  .ui{border:1px solid var(--line);border-radius:16px;background:var(--card);overflow:hidden;box-shadow:var(--shadow-soft);
+    transition:.22s var(--spring)}
+  .ui:hover{transform:translateY(-4px);box-shadow:var(--shadow-pink)}
+  .ui-bar{padding:9px 13px;font-weight:700;font-size:12.5px;color:#fff;display:flex;align-items:center;gap:7px}
+  .ui-body{padding:13px}
+  .skl{height:9px;border-radius:6px;background:var(--bg-soft);margin-bottom:8px}
+  .skl.w70{width:70%}.skl.w50{width:50%}.skl.w90{width:90%}
+  .pips{display:flex;gap:4px;margin-top:6px}
+  .pip{width:13px;height:13px;border-radius:50%;background:var(--bg-soft)}
+  .pip.on{background:var(--pink)}
+  .pillrow{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+  .mini-pill{font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--purple-soft);color:var(--purple)}
+  .price{font-size:20px;font-weight:800;color:var(--ink)}
+  .ui-foot{font-size:11px;color:var(--ink-soft);padding:9px 13px;border-top:1px dashed var(--line)}
+
+  /* ---------- HEX ---------- */
+  .hex-wrap{margin-top:26px;border-radius:var(--r);border:1px solid var(--line);background:var(--card);
+    box-shadow:var(--shadow-soft);padding:26px;display:flex;justify-content:center}
+  .hexcols{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:14px;align-items:center;width:100%;max-width:900px}
+  .hcol{display:flex;flex-direction:column;gap:9px}
+  .col-title{text-align:center;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+  .hbox{border-radius:13px;padding:10px 12px;font-size:13px;font-weight:600;text-align:center;border:1.5px solid}
+  .hbox small{display:block;font-weight:500;font-size:11px;color:var(--ink-soft);font-family:'DM Mono',monospace}
+  .h-port{border-color:var(--purple);background:var(--purple-soft)}
+  .h-adapt{border-color:var(--blue);background:var(--blue-soft)}
+  .h-core{border-color:var(--pink);background:var(--pink-soft)}
+  .conn{display:grid;place-items:center;color:var(--ink-soft);font-size:20px}
+
+  /* ---------- STACK ---------- */
+  .stackgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:24px}
+  .st{border:1px solid var(--line);border-radius:15px;background:var(--card);padding:14px 16px;box-shadow:var(--shadow-soft)}
+  .st b{display:block;font-size:14px;margin-bottom:6px;color:var(--purple)}
+  .st ul{list-style:none;font-size:13px;color:var(--ink-soft)}
+  .st li{padding:2px 0}
+  .st li::before{content:"›";color:var(--pink);font-weight:800;margin-right:7px}
+
+  footer{text-align:center;margin-top:60px;padding:30px;color:var(--ink-soft);font-size:13px;border-top:1px solid var(--line)}
+
+  @media(max-width:860px){
+    .player{grid-template-columns:1fr}
+    .steps-rail{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+    .step-btn{min-width:220px}
+    .hexcols{grid-template-columns:1fr;}
+    .conn{transform:rotate(90deg)}
+    .nav-links{display:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="brand">
+      <span class="compass" aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+      </span>
+      Kompass
+    </div>
+    <div class="nav-links" id="navlinks">
+      <a href="#overview" class="active">Overview</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#flow">The Flow</a>
+      <a href="#toolbelt">Toolbelt</a>
+      <a href="#sources">Data Sources</a>
+      <a href="#cards">UI Cards</a>
+      <a href="#hex">Hexagonal</a>
+      <a href="#stack">Stack</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="wrap hero" id="overview">
+  <span class="eyebrow">⊹ The Autonomous AI Travel Architect</span>
+  <h1>The whole flow of <span class="grad">Kompass</span>,<br/>visualized piece by piece</h1>
+  <p>One message in chat fans out into a thinking agent, two MCP servers, a grounded research sub-agent, a stress-scored set of trip scenarios, and a live map — all streamed back to you in real time. Here's exactly how a request travels through the system.</p>
+  <div class="hero-chips">
+    <span class="chip">⚡ <b>FastAPI</b> + PydanticAI</span>
+    <span class="chip">🤖 Gemini 2.5 Pro <b>(thinking)</b></span>
+    <span class="chip">🔌 <b>AG-UI</b> over SSE</span>
+    <span class="chip">🎨 Next.js 16 + <b>CopilotKit</b></span>
+    <span class="chip">🗺️ <b>Google Maps</b> route plotting</span>
+  </div>
+  <div class="scroll-cue">▾ explore the system</div>
+</header>
+
+<!-- ARCHITECTURE -->
+<section class="wrap" id="architecture">
+  <span class="eyebrow">01 — The map</span>
+  <h2>Four layers, one streaming pipe</h2>
+  <p class="lead">A Next.js client talks to a FastAPI backend over the AG-UI protocol. The backend hosts a PydanticAI agent that reaches out to external data sources. Tap any block to learn what it does.</p>
+
+  <div class="lanes">
+    <div class="lane l-front">
+      <div class="lane-head"><span class="lane-tag">Frontend</span><span class="lane-sub">Next.js · React 19 · CopilotKit v2 · "Candy" theme</span></div>
+      <div class="nodes" data-lane="front">
+        <div class="node" data-k="chat">CopilotChat<small>conversational UI</small></div>
+        <div class="node" data-k="cards">Generative-UI cards<small>8 streamed tool renderers</small></div>
+        <div class="node" data-k="sidebar">Trip / Saved sidebar<small>resume · bookmark</small></div>
+        <div class="node" data-k="map">Interactive map panel<small>route + markers</small></div>
+      </div>
+    </div>
+    <div class="flow-arrow">⇅ &nbsp; SSE stream (AG-UI protocol)</div>
+    <div class="lane l-api">
+      <div class="lane-head"><span class="lane-tag">FastAPI</span><span class="lane-sub">main.py lifespan · api/routes.py</span></div>
+      <div class="nodes" data-lane="api">
+        <div class="node" data-k="copilot">POST /api/copilotkit<small>the streaming endpoint</small></div>
+        <div class="node" data-k="rest">REST: trips · profile · saved<small>session + memory</small></div>
+        <div class="node" data-k="db">SQLite persistence<small>SQLAlchemy + aiosqlite</small></div>
+      </div>
+    </div>
+    <div class="flow-arrow">⇅</div>
+    <div class="lane l-agent">
+      <div class="lane-head"><span class="lane-tag">Agent</span><span class="lane-sub">PydanticAI · Gemini 2.5 Pro · thinking mode</span></div>
+      <div class="nodes" data-lane="agent">
+        <div class="node" data-k="kompass">kompass_agent<small>output: str | Scenario</small></div>
+        <div class="node" data-k="tools">8 agent tools<small>the toolbelt</small></div>
+        <div class="node" data-k="research">research sub-agent<small>Gemini grounding</small></div>
+      </div>
+    </div>
+    <div class="flow-arrow">⇅</div>
+    <div class="lane l-ext">
+      <div class="lane-head"><span class="lane-tag">External</span><span class="lane-sub">MCP servers · grounded search · tracing</span></div>
+      <div class="nodes" data-lane="ext">
+        <div class="node" data-k="kiwi">Kiwi.com MCP<small>flights · remote HTTP</small></div>
+        <div class="node" data-k="serp">SerpApi Hotels MCP<small>accommodations · stdio</small></div>
+        <div class="node" data-k="gemini">Gemini grounding<small>web + ground transport</small></div>
+        <div class="node" data-k="langfuse">Langfuse<small>OpenTelemetry traces</small></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="node-detail" id="nodeDetail">
+    <h4>Click any block above 👆</h4>
+    <p>Each piece of the architecture has a specific job. Select one to see what it owns and where it lives in the codebase.</p>
+  </div>
+</section>
+
+<!-- FLOW PLAYER -->
+<section class="wrap" id="flow">
+  <span class="eyebrow">02 — The journey</span>
+  <h2>A single request, step by step</h2>
+  <p class="lead">Follow one travel request from the chat box all the way to a saved, mapped itinerary. Press <b>Run the flow</b> to auto-advance, or click any step.</p>
+
+  <div class="player">
+    <div class="steps-rail" id="rail"></div>
+    <div class="stage" id="stage"></div>
+  </div>
+
+  <div class="player-ctrls">
+    <button class="btn btn-primary" id="playBtn">▶ Run the flow</button>
+    <button class="btn btn-ghost" id="prevBtn">‹ Prev</button>
+    <button class="btn btn-ghost" id="nextBtn">Next ›</button>
+    <div class="progress-track"><div class="progress-fill" id="pfill"></div></div>
+  </div>
+</section>
+
+<!-- TOOLBELT -->
+<section class="wrap" id="toolbelt">
+  <span class="eyebrow">03 — The agent's hands</span>
+  <h2>The toolbelt</h2>
+  <p class="lead">The agent decides which tools to call and in what order. Each call streams a generative-UI card into the chat. Click a tool to expand it.</p>
+  <div class="grid g-tools" id="toolgrid"></div>
+</section>
+
+<!-- DATA SOURCES -->
+<section class="wrap" id="sources">
+  <span class="eyebrow">04 — Where the truth comes from</span>
+  <h2>Live data sources</h2>
+  <p class="lead">Kompass never invents prices. Structured data comes from real providers; grounded search fills the gaps and acts as the fallback.</p>
+  <div class="grid g-src">
+    <div class="src-card">
+      <span class="badge" style="background:#dcf7ea;color:var(--green)">Flights</span>
+      <h4>Kiwi.com MCP</h4>
+      <p>The official remote Kiwi MCP <code>search-flight</code> tool over streamable HTTP — no API key. Client-side <code>max_stops</code> / time filtering; cheapest-date sampling fires concurrent ±3-day flex searches.</p>
+    </div>
+    <div class="src-card">
+      <span class="badge" style="background:var(--purple-soft);color:var(--purple)">Stays</span>
+      <h4>SerpApi Google Hotels MCP</h4>
+      <p>A local FastMCP <b>stdio</b> server (<code>accommodations_server.py</code>) wrapping SerpApi. Returns nightly + total rates, ratings, amenities, links. <code>MCP_MODE=mock</code> serves deterministic fake data to save quota.</p>
+    </div>
+    <div class="src-card">
+      <span class="badge" style="background:var(--blue-soft);color:var(--blue)">Knowledge</span>
+      <h4>Gemini grounding sub-agent</h4>
+      <p>An isolated PydanticAI agent using native Google Search grounding — destination research, ground-transport (train/bus/ferry) routing, and the price fallback. Kept separate so grounding doesn't collide with structured output.</p>
+    </div>
+    <div class="src-card">
+      <span class="badge" style="background:var(--pink-soft);color:var(--pink)">Memory</span>
+      <h4>SQLite</h4>
+      <p>Async SQLAlchemy + aiosqlite. <code>trips</code> store the full AG-UI <code>message_history</code> so cards rehydrate on reload; plus <code>user_profiles</code> (singleton) and <code>saved_scenarios</code>.</p>
+    </div>
+  </div>
+  <div class="notice">
+    <span class="ico">🛡️</span>
+    <div><b>The reliability contract.</b> When a source errors or returns nothing — Kiwi unreachable, SerpApi key missing — the tools return <b>no fabricated data</b> (flights: empty list; accommodations: <code>available: false</code>) and the agent falls back to grounded <code>search_web</code>. Prices are never invented.</div>
+  </div>
+</section>
+
+<!-- UI CARDS -->
+<section class="wrap" id="cards">
+  <span class="eyebrow">05 — What you actually see</span>
+  <h2>Generative-UI card gallery</h2>
+  <p class="lead">Every tool call renders a purpose-built card, streamed live with animated loading states. Here's the family.</p>
+  <div class="grid g-cards">
+    <div class="ui"><div class="ui-bar" style="background:var(--pink)">🎯 Preferences</div><div class="ui-body">
+      <div class="pillrow"><span class="mini-pill">Direct flights</span><span class="mini-pill">4★ hotels</span><span class="mini-pill">train ok</span><span class="mini-pill">foodie</span></div></div>
+      <div class="ui-foot">preferences-card.js</div></div>
+
+    <div class="ui"><div class="ui-bar" style="background:var(--purple)">❔ Clarify (HITL)</div><div class="ui-body">
+      <div class="skl w90"></div><div class="pillrow"><span class="mini-pill">Beach</span><span class="mini-pill">City</span><span class="mini-pill">Mountains</span><span class="mini-pill">Other…</span></div></div>
+      <div class="ui-foot">clarify-card.js · pauses the run</div></div>
+
+    <div class="ui"><div class="ui-bar" style="background:var(--blue)">📅 Cheapest dates</div><div class="ui-body">
+      <div class="skl w70"></div><div class="price">€212</div><span class="tag-card">≈ approx</span></div>
+      <div class="ui-foot">cheapest-dates-card.js</div></div>
+
+    <div class="ui"><div class="ui-bar" style="background:var(--pink)">✈️ Flights</div><div class="ui-body">
+      <div class="skl w50"></div><div class="price">€189</div><div class="skl w70" style="margin-top:8px"></div></div>
+      <div class="ui-foot">flights-card.js · Kiwi</div></div>
+
+    <div class="ui"><div class="ui-bar" style="background:var(--purple)">🏨 Stays</div><div class="ui-body">
+      <div class="skl w90"></div><div class="pillrow"><span class="mini-pill">★ 4.6</span><span class="mini-pill">wifi</span><span class="mini-pill">pool</span></div><div class="price" style="margin-top:6px">€96<span style="font-size:12px;color:var(--ink-soft)">/night</span></div></div>
+      <div class="ui-foot">accommodations-card.js · SerpApi</div></div>
+
+    <div class="ui"><div class="ui-bar" style="background:var(--blue)">🔎 Research</div><div class="ui-body">
+      <div class="skl w90"></div><div class="skl w70"></div><div class="skl w50"></div></div>
+      <div class="ui-foot">research-card.js · grounded</div></div>
+
+    <div class="ui"><div class="ui-bar" style="background:var(--green)">🚆 Ground transport</div><div class="ui-body">
+      <div class="skl w70"></div><div class="pillrow"><span class="mini-pill">train</span><span class="mini-pill">2h 40m</span><span class="mini-pill">€18–34</span></div></div>
+      <div class="ui-foot">ground-transport-card.js</div></div>
+
+    <div class="ui"><div class="ui-bar" style="background:linear-gradient(135deg,var(--pink),var(--purple))">⚖️ Scenarios</div><div class="ui-body">
+      <div class="price">€640</div><div style="font-size:11px;color:var(--ink-soft);margin-bottom:4px">stress</div>
+      <div class="pips"><span class="pip on"></span><span class="pip on"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></div>
+      <span class="tag-card" style="margin-top:8px">Best value</span></div>
+      <div class="ui-foot">scenario-comparison-card.js</div></div>
+  </div>
+</section>
+
+<!-- HEXAGONAL -->
+<section class="wrap" id="hex">
+  <span class="eyebrow">06 — Why it's clean</span>
+  <h2>Hexagonal architecture</h2>
+  <p class="lead">The agent core depends on <b>ports</b> (interfaces), never on infrastructure. Adapters plug the real world in — so a mock hotel server or a different DB is a one-line swap.</p>
+  <div class="hex-wrap">
+    <div class="hexcols">
+      <div class="col">
+        <div class="col-title" style="color:var(--blue)">Adapters</div>
+        <div class="hbox h-adapt">Kiwi MCP<small>mcp_flight_service</small></div>
+        <div class="hbox h-adapt">SerpApi MCP<small>mcp_accommodation</small></div>
+        <div class="hbox h-adapt">SQLite repos<small>sqlite_*_repository</small></div>
+      </div>
+      <div class="conn">→</div>
+      <div class="col">
+        <div class="col-title" style="color:var(--purple)">Ports</div>
+        <div class="hbox h-port">FlightServicePort<small>search · dates</small></div>
+        <div class="hbox h-port">AccommodationPort<small>search</small></div>
+        <div class="hbox h-port">Repositories<small>trip · profile · saved</small></div>
+      </div>
+      <div class="conn">→</div>
+      <div class="col">
+        <div class="col-title" style="color:var(--pink)">Core domain</div>
+        <div class="hbox h-core">kompass_agent<small>+ tools</small></div>
+        <div class="hbox h-core">Domain models<small>Trip · Scenario · Itinerary</small></div>
+        <div class="hbox h-core">AgentDependencies<small>injected deps</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STACK -->
+<section class="wrap" id="stack">
+  <span class="eyebrow">07 — Under the hood</span>
+  <h2>The tech stack</h2>
+  <div class="stackgrid">
+    <div class="st"><b>Backend</b><ul><li>FastAPI</li><li>PydanticAI</li><li>Gemini 2.5 Pro</li><li>Python 3.14 · uv</li></ul></div>
+    <div class="st"><b>Protocol</b><ul><li>AG-UI over SSE</li><li>MCP (HTTP + stdio)</li><li>OpenTelemetry</li></ul></div>
+    <div class="st"><b>Frontend</b><ul><li>Next.js 16</li><li>React 19</li><li>CopilotKit v2</li><li>Tailwind CSS v4</li></ul></div>
+    <div class="st"><b>Data & maps</b><ul><li>SQLite + SQLAlchemy</li><li>aiosqlite (async)</li><li>@vis.gl/react-google-maps</li></ul></div>
+    <div class="st"><b>Observability</b><ul><li>Langfuse v4</li><li>per-trip session traces</li><li>no-op without keys</li></ul></div>
+    <div class="st"><b>Quality</b><ul><li>pytest (backend)</li><li>Vitest (units)</li><li>Playwright (e2e)</li></ul></div>
+  </div>
+</section>
+
+<footer>
+  Built from the Kompass post-build docs · <code>docs/architecture.md</code> · <code>docs/product.md</code> · <code>docs/design.md</code><br/>
+  An interactive HTML artifact — open it, share it, explore the flow.
+</footer>
+
+<script>
+/* ---------- ARCHITECTURE node details ---------- */
+const NODE = {
+  chat:{t:"CopilotChat",d:"The conversational surface. Streams reasoning bubbles, search-progress pills, and tool cards as the agent works.",f:["page.js","use-trip-tools.js"]},
+  cards:{t:"Generative-UI cards",d:"Eight useRenderTool renderers turn each tool call into a rich card — preferences, flights, stays, scenarios, and more.",f:["components/tool-cards/","use-trip-tools.js"]},
+  sidebar:{t:"Trip / Saved sidebar",d:"Two tabs: resume or start trips, and reopen bookmarked scenarios in the shared detail modal.",f:["trip-sidebar.js","saved-list.js"]},
+  map:{t:"Interactive map panel",d:"Plots numbered stops + stay markers and mode-colored polylines (geodesic for flights), auto-fitting bounds. Coordinates geocoded client-side.",f:["map/trip-map.js","lib/geocode.js"]},
+  copilot:{t:"POST /api/copilotkit",d:"The streaming heart: rebuilds effective preferences, upserts the trip, dispatches the agent to the AG-UI stream, and persists messages on completion.",f:["api/routes.py"]},
+  rest:{t:"REST endpoints",d:"Trip sessions, the global profile, and saved scenarios — the CRUD that backs memory and the sidebar.",f:["api/routes.py","lib/trips-api.js"]},
+  db:{t:"SQLite persistence",d:"trips (with full AG-UI message_history), user_profiles singleton, and saved_scenarios — via async SQLAlchemy.",f:["db.py","adapters/sqlite_*"]},
+  kompass:{t:"kompass_agent",d:"The PydanticAI agent. output_type = Union[str, Scenario], deps_type = AgentDependencies, thinking mode on.",f:["agent/agent.py"]},
+  tools:{t:"Agent tools",d:"gather_preferences, find_cheapest_dates, search_flights, search_accommodations, search_web, search_ground_transport, generate_scenarios, ask_clarifying_question.",f:["agent/agent.py"]},
+  research:{t:"Research sub-agent",d:"An isolated agent using Gemini Google Search grounding — destination knowledge, ground-transport routing, and price fallback.",f:["agent/research_agent.py"]},
+  kiwi:{t:"Kiwi.com MCP",d:"Remote, streamable-HTTP MCP. No API key. Live structured flights + concurrent cheapest-date sampling.",f:["adapters/mcp_flight_service.py"]},
+  serp:{t:"SerpApi Hotels MCP",d:"Local stdio FastMCP server wrapping SerpApi Google Hotels. Rates, ratings, amenities, links.",f:["mcp_servers/accommodations_server.py"]},
+  gemini:{t:"Gemini grounding",d:"Google Search grounding powering the research sub-agent for live, cited answers.",f:["agent/prompts/research_prompt.md"]},
+  langfuse:{t:"Langfuse tracing",d:"Every agent run (main + research) exports OpenTelemetry spans, grouped per trip via session_id. No-op without keys.",f:["telemetry.py"]},
+};
+const detail = document.getElementById('nodeDetail');
+document.querySelectorAll('.node').forEach(n=>{
+  n.addEventListener('click',()=>{
+    document.querySelectorAll('.node').forEach(x=>x.classList.remove('sel'));
+    n.classList.add('sel');
+    const k = NODE[n.dataset.k];
+    detail.innerHTML = `<h4>${k.t}</h4><p>${k.d}</p><div class="files">${k.f.map(f=>`<span class="file-pill">${f}</span>`).join('')}</div>`;
+  });
+});
+
+/* ---------- FLOW STEPS ---------- */
+const STEPS = [
+  {t:"Open the app",sub:"3-pane candy UI",layer:"front",lit:[true,false,false,false],
+   narr:"The Next.js App Router renders a three-pane layout — Trips sidebar · chat · live map — all wrapped in the MapState and CopilotKit providers. The active thread_id syncs to the agent endpoint.",
+   code:`<span class="c">// page.js — composed panes</span>
+<span class="k">&lt;MapStateProvider&gt;</span>
+  <span class="k">&lt;TripSidebar /&gt;</span>      <span class="c">// resume · new · saved</span>
+  <span class="k">&lt;CopilotChat /&gt;</span>      <span class="c">// the conversation</span>
+  <span class="k">&lt;TripPanel /&gt;</span>        <span class="c">// itinerary + Google Map</span>
+<span class="k">&lt;/MapStateProvider&gt;</span>`,
+   f:["page.js","copilotkit-provider.js","use-active-trip.js"]},
+
+  {t:"Compose a request",sub:"user types a trip",layer:"front",lit:[true,false,false,false],
+   narr:'"5 relaxed days somewhere warm in October, ~€800, flying from Berlin." The chat hook also registers the human-in-the-loop ask_clarifying_question tool, so the agent can ask back.',
+   code:`<span class="c">// the traveler's free-text intent</span>
+<span class="s">"5 relaxed days somewhere warm in</span>
+<span class="s"> October, budget ~€800, from Berlin"</span>`,
+   f:["use-trip-tools.js"]},
+
+  {t:"Stream to backend",sub:"AG-UI over SSE",layer:"api",lit:[true,true,false,false],
+   narr:"CopilotKit POSTs the run to /api/copilotkit and holds open a Server-Sent-Events stream. Every reasoning token, tool call, and tool result flows back over this one pipe using the AG-UI protocol.",
+   code:`<span class="k">POST</span> /api/copilotkit
+<span class="c">Accept: text/event-stream</span>
+
+<span class="c">// events stream back:</span>
+<span class="m">RUN_STARTED</span> · <span class="m">REASONING_*</span>
+<span class="m">TOOL_CALL_*</span> · <span class="m">TEXT_MESSAGE_*</span></span>`,
+   f:["api/routes.py","lib/config.js"]},
+
+  {t:"Reconstruct context",sub:"profile + history merge",layer:"api",lit:[false,true,false,false],
+   narr:"The route rebuilds effective UserPreferences — the global profile baseline merged with anything stated in the conversation — and upserts a Trip row for this thread_id before launching the agent.",
+   code:`<span class="c"># routes.py</span>
+prefs = profile.<span class="m">merged_with</span>(history_prefs)
+trip  = <span class="m">upsert_trip</span>(thread_id)
+run   = agent.<span class="m">run_ag_ui</span>(deps=...)`,
+   f:["api/routes.py","user_preferences.py"]},
+
+  {t:"Launch the agent",sub:"Gemini, thinking on",layer:"agent",lit:[false,true,true,false],
+   narr:"The PydanticAI kompass_agent starts with output_type = str | Scenario and thinking enabled. AgentDependencies injects the prompt service, repositories, and the flight/accommodation services it can reach for.",
+   code:`<span class="c"># agent/agent.py</span>
+kompass_agent = <span class="m">Agent</span>(
+  model=<span class="s">"google:gemini-2.5-pro"</span>,
+  output_type=<span class="k">Union</span>[str, Scenario],
+  deps_type=AgentDependencies,
+  model_settings={<span class="s">"thinking"</span>: <span class="k">True</span>},
+)`,
+   f:["agent/agent.py","agent/dependency.py"]},
+
+  {t:"Clarify (human-in-the-loop)",sub:"the run pauses",layer:"agent",lit:[true,true,true,false],
+   narr:"If intent is ambiguous, ask_clarifying_question — a frontend tool — renders a clarify card with option pills + an 'Other' field and PAUSES the run. It resumes only once you answer; the answer rehydrates on reload.",
+   code:`<span class="c">// frontend tool, exposed to the agent</span>
+ask_clarifying_question({
+  question: <span class="s">"What's the vibe?"</span>,
+  options: [<span class="s">"Beach"</span>,<span class="s">"City"</span>,<span class="s">"Mountains"</span>]
+}) <span class="c">// → run suspends until answered</span>`,
+   f:["use-trip-tools.js","clarify-card.js"]},
+
+  {t:"Gather preferences",sub:"persist the profile",layer:"agent",lit:[false,true,true,false],
+   narr:"gather_preferences extracts UserPreferences (layered with merged_with) and writes them to the global profile so they persist across trips. The preferences card shows the captured pills.",
+   code:`<span class="c"># tool: gather_preferences</span>
+prefs = base.<span class="m">merged_with</span>(new_prefs)
+profile_repo.<span class="m">save</span>(prefs)
+<span class="c"># → renders preferences-card</span>`,
+   f:["agent/agent.py","preferences-card.js"]},
+
+  {t:"Research & price",sub:"tools + MCP + grounding",layer:"ext",lit:[false,false,true,true],
+   narr:"The core loop. The agent calls find_cheapest_dates / search_flights (Kiwi MCP), search_accommodations (SerpApi MCP), and search_web / search_ground_transport (Gemini grounding). Each call streams its own card; failures fall back to grounded search.",
+   code:`<span class="m">find_cheapest_dates</span>() <span class="c">→ Kiwi MCP (concurrent flex)</span>
+<span class="m">search_flights</span>()      <span class="c">→ Kiwi MCP</span>
+<span class="m">search_accommodations</span>()<span class="c">→ SerpApi MCP</span>
+<span class="m">search_ground_transport</span>()<span class="c">→ grounding</span>
+<span class="m">search_web</span>()          <span class="c">→ grounding / fallback</span>`,
+   f:["mcp_flight_service.py","accommodations_server.py","research_agent.py"]},
+
+  {t:"Generate scenarios",sub:"2–3 stress-scored plans",layer:"agent",lit:[true,false,true,false],
+   narr:"generate_scenarios assembles 2–3 Scenario objects, recomputes each grand_total from its parts, threads currency, flags estimates, and validates the day-by-day plan covers the full trip span. Targeted refinement re-runs just one.",
+   code:`<span class="c"># tool: generate_scenarios</span>
+<span class="k">for</span> s <span class="k">in</span> scenarios:
+  s.cost.grand_total = <span class="m">recompute</span>(s)
+  <span class="m">validate_days</span>(s, trip_span)  <span class="c"># enforce full plan</span>
+<span class="c"># → scenario-comparison-card (best value / low stress)</span>`,
+   f:["agent/agent.py","scenario.py","scenario-comparison-card.js"]},
+
+  {t:"Explore · save · map",sub:"detail, bookmark, plot",layer:"front",lit:[true,true,false,false],
+   narr:'"View details" opens the modal — cost breakdown, stress gauge, per-direction timeline, expandable day-by-day itinerary. "Save this trip" persists it; "View on map" feeds the route to the live map. The full AG-UI history is saved so cards rehydrate, and Langfuse traces the whole run.',
+   code:`<span class="c">// closing the loop</span>
+<span class="m">ScenarioDetailModal</span> → cost · stress · day-by-day
+<span class="m">saveScenario</span>()  <span class="c">→ POST /api/saved-scenarios</span>
+<span class="m">setActiveRoute</span>() <span class="c">→ map plots geodesic legs</span>
+<span class="m">PUT /messages</span>   <span class="c">→ history persisted · Langfuse trace</span>`,
+   f:["scenario-detail-modal","map/map-context.js","telemetry.py"]},
+];
+
+const LAYER_LABEL = {front:"Frontend",api:"FastAPI",agent:"Agent",ext:"External"};
+const LB = {front:"lb-front",api:"lb-api",agent:"lb-agent",ext:"lb-ext"};
+
+const rail = document.getElementById('rail');
+const stage = document.getElementById('stage');
+const pfill = document.getElementById('pfill');
+let cur = 0, playing = false, timer = null;
+
+STEPS.forEach((s,i)=>{
+  const b = document.createElement('button');
+  b.className = 'step-btn';
+  b.innerHTML = `<span class="s-num">${i+1}</span><span><span class="s-t">${s.t}</span><span class="s-sub">${s.sub}</span></span>`;
+  b.addEventListener('click',()=>{stop();render(i);});
+  rail.appendChild(b);
+});
+
+function render(i){
+  cur = i;
+  const s = STEPS[i];
+  document.querySelectorAll('.step-btn').forEach((b,j)=>{
+    b.classList.toggle('active',j===i);
+    b.classList.toggle('done',j<i);
+  });
+  const strip = ['Frontend','Agent loop','External','Persist'];
+  // mini strip representing the 4 layers (front, api->agent, external, persist)
+  const litClass = ['f','a','g','e'];
+  stage.innerHTML = `
+    <div class="stage-head">
+      <span class="layer-badge ${LB[s.layer]}">${LAYER_LABEL[s.layer]}</span>
+      <h3>${s.t}</h3>
+    </div>
+    <div class="strip">
+      <div class="${s.lit[0]?'lit f':''}">Frontend</div>
+      <div class="${s.lit[1]?'lit a':''}">FastAPI</div>
+      <div class="${s.lit[2]?'lit g':''}">Agent</div>
+      <div class="${s.lit[3]?'lit e':''}">External</div>
+    </div>
+    <p class="narr">${s.narr}</p>
+    <div class="snippet"><pre>${s.code}</pre></div>
+    <div class="files">${s.f.map(f=>`<span class="file-pill">${f}</span>`).join('')}</div>
+  `;
+  pfill.style.width = (((i+1)/STEPS.length)*100)+'%';
+  // keep active step visible on mobile rail
+  const ab = rail.children[i];
+  if(ab && ab.scrollIntoView) ab.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});
+}
+
+const playBtn = document.getElementById('playBtn');
+function play(){
+  playing = true; playBtn.textContent = '⏸ Pause';
+  if(cur >= STEPS.length-1) render(0);
+  timer = setInterval(()=>{
+    if(cur >= STEPS.length-1){ stop(); return; }
+    render(cur+1);
+  },2600);
+}
+function stop(){
+  playing = false; playBtn.textContent = '▶ Run the flow';
+  if(timer){clearInterval(timer);timer=null;}
+}
+playBtn.addEventListener('click',()=>{ playing ? stop() : play(); });
+document.getElementById('nextBtn').addEventListener('click',()=>{stop();render(Math.min(cur+1,STEPS.length-1));});
+document.getElementById('prevBtn').addEventListener('click',()=>{stop();render(Math.max(cur-1,0));});
+render(0);
+
+/* ---------- TOOLBELT ---------- */
+const TOOLS = [
+  {n:"ask_clarifying_question",i:"❔",bg:"var(--purple)",src:"Frontend HITL",d:"One focused question with option pills + an 'Other' field. Pauses the agent until you answer.",x:"Registered via CopilotKit useHumanInTheLoop — PydanticAI's AG-UI toolset exposes it automatically.",card:"clarify-card"},
+  {n:"gather_preferences",i:"🎯",bg:"var(--pink)",src:"Profile",d:"Extracts & layers UserPreferences, then persists them to the global profile for future trips.",x:"Uses merged_with() so conversation prefs layer cleanly over the saved baseline.",card:"preferences-card"},
+  {n:"find_cheapest_dates",i:"📅",bg:"var(--blue)",src:"Kiwi MCP",d:"Samples a month with concurrent ±3-day flex searches, keeping the cheapest fare per departure date.",x:"Bounded by KIWI_DATE_SAMPLES; degrades to an empty result on error (never fabricated).",card:"cheapest-dates-card"},
+  {n:"search_flights",i:"✈️",bg:"var(--pink)",src:"Kiwi MCP",d:"Live structured fares, currency-aware, honoring direct_flights_only (applied client-side).",x:"One Kiwi search-flight call + client-side max_stops / preferred-time filtering.",card:"flights-card"},
+  {n:"search_accommodations",i:"🏨",bg:"var(--purple)",src:"SerpApi MCP",d:"Live Google Hotels — nightly + total rates, ratings, amenities, booking links.",x:"Supports max_price / min_rating; falls back to search_web when available:false.",card:"accommodations-card"},
+  {n:"search_web",i:"🔎",bg:"var(--blue)",src:"Gemini grounding",d:"The grounded research sub-agent — destination knowledge and the universal price fallback.",x:"Isolated agent: Gemini won't reliably mix grounding with structured output in one call.",card:"research-card"},
+  {n:"search_ground_transport",i:"🚆",bg:"var(--green)",src:"Gemini grounding",d:"Grounded train / bus / ferry routing — operators, times, duration, frequency, fare range.",x:"Feeds non-flight Legs and onward hops sequenced after flights with transfer buffers.",card:"ground-transport-card"},
+  {n:"generate_scenarios",i:"⚖️",bg:"linear-gradient(135deg,var(--pink),var(--purple))",src:"Agent",d:"Builds 2–3 comparable Scenarios with recomputed totals, stress scores, and a full day-by-day plan.",x:"Validates 2–3 scenarios and complete day coverage; supports targeted single-scenario refinement.",card:"scenario-comparison-card"},
+];
+const tg = document.getElementById('toolgrid');
+TOOLS.forEach(t=>{
+  const el = document.createElement('div');
+  el.className = 'tool';
+  el.innerHTML = `
+    <div class="tool-top">
+      <div class="tool-ico" style="background:${t.bg};color:#fff">${t.i}</div>
+      <div><div class="tool-name">${t.n}</div><div class="src">${t.src}</div></div>
+    </div>
+    <p>${t.d}</p>
+    <span class="tag-card">↳ ${t.card}</span>
+    <div class="extra"><b>Under the hood:</b> ${t.x}</div>`;
+  el.addEventListener('click',()=>el.classList.toggle('open'));
+  tg.appendChild(el);
+});
+
+/* ---------- NAV scrollspy ---------- */
+const links = [...document.querySelectorAll('#navlinks a')];
+const secs = links.map(l=>document.querySelector(l.getAttribute('href')));
+const io = new IntersectionObserver(es=>{
+  es.forEach(e=>{
+    if(e.isIntersecting){
+      const id = '#'+e.target.id;
+      links.forEach(l=>l.classList.toggle('active',l.getAttribute('href')===id));
+    }
+  });
+},{rootMargin:'-45% 0px -50% 0px'});
+secs.forEach(s=>s&&io.observe(s));
+</script>
+</body>
+</html>
