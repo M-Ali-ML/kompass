@@ -70,9 +70,12 @@ class PlanItem(BaseModel):
 class DaySummary(BaseModel):
     """A comprehensive day-by-day plan entry for the traveler."""
     day_number: int = Field(..., description="The day index of the trip (starting from 1).", ge=1)
-    title: str = Field(
-        ...,
-        description="A short, evocative headline for the day (e.g. 'Arrival & Sunset Stroll').",
+    title: str | None = Field(
+        None,
+        description=(
+            "A short, evocative headline for the day (e.g. 'Arrival & Sunset Stroll'). "
+            "Optional — backfilled from the day's description if omitted."
+        ),
     )
     description: str = Field(..., description="Brief narrative of the day's vibe and overall plan.")
     schedule: list[PlanItem] = Field(

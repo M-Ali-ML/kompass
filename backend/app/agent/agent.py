@@ -1,6 +1,7 @@
 import asyncio
 import calendar
 import logging
+from collections import Counter
 from datetime import date, datetime
 from typing import Union
 from pydantic_ai import Agent, RunContext
@@ -45,6 +46,20 @@ def _month_to_range(month: str) -> tuple[str, str]:
     m = max(1, min(12, m))
     last = calendar.monthrange(y, m)[1]
     return date(y, m, 1).isoformat(), date(y, m, last).isoformat()
+
+
+def _day_fingerprint(day) -> tuple:
+    """A content signature for a DaySummary used to detect padded/placeholder days.
+
+    Two days that share the same title, description, and ordered (period, activity)
+    schedule are treated as identical — the tell-tale sign of filler days the model
+    emits to satisfy a day count (e.g. "Return to Berlin" repeated three times).
+    """
+    return (
+        (day.title or "").strip().lower(),
+        (day.description or "").strip().lower(),
+        tuple((p.period.strip().lower(), p.activity.strip().lower()) for p in day.schedule),
+    )
 
 # Load the LLM model from settings
 llm_model = settings.llm_model
@@ -168,6 +183,9 @@ async def search_flights(
 
     prefs = ctx.deps.user_preferences
     currency = prefs.currency
+    # Remember the largest party size searched this run so generate_scenarios can
+    # backfill Scenario.travelers if the model leaves it at the default.
+    ctx.deps.party_size = max(ctx.deps.party_size or 1, passengers)
     # Honor a strict direct-flights preference unless the caller is more specific.
     if max_stops is None and prefs.direct_flights_only:
         max_stops = 0
@@ -343,38 +361,64 @@ async def generate_scenarios(
             "scenarios": [],
         }
 
-    # Enforce a full day-by-day plan: each scenario should carry one DaySummary
-    # per trip day. The model tends to collapse long trips into a couple of
-    # "highlight" days, so reject (at most once per run, to avoid a loop) with a
-    # corrective message when the day count is materially short of the trip span.
-    if ctx.deps.day_validation_retries < 1:
-        short = []
+    # Enforce a genuine, full day-by-day plan. Two failure modes to catch:
+    #   1. Too few days — the model collapses a long trip into a couple of
+    #      "highlight" days (a 12-day trip with 8 entries).
+    #   2. Padded days — to satisfy a day count the model repeats identical
+    #      filler entries (e.g. "Return to Berlin" three times).
+    # Reject (bounded by `day_validation_retries`, so two corrections at most:
+    # one for each mode, then accept whatever comes back) with a corrective note.
+    if ctx.deps.day_validation_retries < 2:
+        problems = []
         for s in scenarios:
+            label = s.comparison_label or s.label
             nights = (s.end_date - s.start_date).days
             have = len(s.itinerary.days)
             if nights >= 3 and have < nights:
-                short.append((s.comparison_label or s.label, have, nights))
-        if short:
+                problems.append(f"'{label}' has only {have}/{nights} days")
+                continue
+            counts = Counter(_day_fingerprint(d) for d in s.itinerary.days)
+            dup_titles = sorted(
+                {(fp[0] or "untitled") for fp, c in counts.items() if c > 1}
+            )
+            if dup_titles:
+                problems.append(
+                    f"'{label}' repeats identical placeholder days ({', '.join(dup_titles)})"
+                )
+        if problems:
             ctx.deps.day_validation_retries += 1
-            detail = "; ".join(f"'{label}' has only {have}/{n} days" for label, have, n in short)
-            logger.warning(f"generate_scenarios rejected — incomplete day plans: {detail}")
+            detail = "; ".join(problems)
+            logger.warning(f"generate_scenarios rejected — day plan issues: {detail}")
             return {
                 "error": (
-                    "Each scenario needs one DaySummary for EVERY day of the trip "
-                    f"(start_date through end_date). Incomplete: {detail}. Re-call "
-                    "generate_scenarios ONCE with a complete day-by-day plan for "
-                    "every scenario — emit an entry for each day_number from 1 to the "
-                    "trip length. Do NOT summarize into a few representative days."
+                    "Each scenario needs one DISTINCT DaySummary for EVERY day of the "
+                    f"trip (start_date through end_date). Issues: {detail}. Re-call "
+                    "generate_scenarios ONCE with a complete day-by-day plan — emit a "
+                    "real, distinct entry for each day_number from 1 to the trip length "
+                    "(no repeated/placeholder days). If the trip is shorter than the "
+                    "date window implies, shorten start_date/end_date to match the "
+                    "actual trip length rather than padding with filler days."
                 ),
                 "scenarios": [],
             }
 
     currency = ctx.deps.user_preferences.currency
-    # Keep the displayed math self-consistent: the grand total is always the
-    # sum of its parts, regardless of what the model put in the field.
+    party = ctx.deps.party_size
     for s in scenarios:
+        # Keep the displayed math self-consistent: the grand total is always the
+        # sum of its parts, regardless of what the model put in the field.
         cb = s.cost_breakdown
         cb.grand_total = round(cb.transportation + cb.accommodation, 2)
+        # Backfill the party size when the model left `travelers` at the default
+        # (it often nests `travelers` on the itinerary, where it's dropped). This
+        # keeps the UI's per-person fares correct.
+        if party and party > 1 and s.travelers <= 1:
+            s.travelers = party
+        # Backfill any missing day titles so the UI always has a headline.
+        for d in s.itinerary.days:
+            if not (d.title or "").strip():
+                desc = (d.description or "").strip()
+                d.title = (desc[:48].rstrip(" .,;:") or f"Day {d.day_number}")
     logger.info(
         f"generate_scenarios destination={destination!r} count={len(scenarios)} "
         f"currency={currency} estimated={estimated}"

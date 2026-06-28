@@ -25,9 +25,14 @@ class AgentDependencies:
     flight_service: FlightServicePort | None = None
     accommodation_service: AccommodationServicePort | None = None
     trip_id: str | None = None
-    # Bounds how many times generate_scenarios may reject for an incomplete
-    # day-by-day plan within a single run, so enforcement can't loop forever.
+    # Bounds how many times generate_scenarios may reject for an incomplete or
+    # padded day-by-day plan within a single run, so enforcement can't loop forever.
     day_validation_retries: int = 0
+    # The party size the model actually searched with (max `passengers` passed to
+    # search_flights this run). Used to backfill Scenario.travelers when the model
+    # forgets to set it (or nests it on the itinerary, where it's silently dropped),
+    # so the UI can show correct per-person fares.
+    party_size: int | None = None
 
 
 def get_agent_dependencies(

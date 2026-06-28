@@ -170,6 +170,92 @@ def _make_scenario(label: str, transport: float, accom: float, claimed_total: fl
     )
 
 
+def _day(n: int, title: str | None = None) -> dict:
+    """A minimal but distinct DaySummary dict for building day-by-day plans."""
+    return {
+        "day_number": n,
+        "title": title if title is not None else f"Day {n} title",
+        "description": f"Day {n} plan",
+        "schedule": [
+            {"period": "Morning", "activity": f"Activity {n}"},
+        ],
+    }
+
+
+def _make_scenario_with_days(label: str, days: list[dict], travelers: int = 1) -> Scenario:
+    """A 3-night scenario (Sep 4 → Sep 7) carrying an explicit day list."""
+    return Scenario(
+        label=label,
+        comparison_label=label,
+        start_date="2026-09-04",
+        end_date="2026-09-07",
+        travelers=travelers,
+        itinerary={"legs": [], "accommodations": [], "days": days},
+        cost_breakdown={"transportation": 100.0, "accommodation": 300.0, "grand_total": 0.0},
+        stress_score=2,
+        stress_factors={
+            "layover_count": 0,
+            "overnight_travel": False,
+            "tight_connection": False,
+            "total_travel_hours": 4.0,
+        },
+        highlights=["Test"],
+        reasoning_summary="A balanced option.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_generate_scenarios_rejects_duplicate_filler_days(agent_deps):
+    from app.agent.agent import generate_scenarios
+    from pydantic_ai import RunContext
+
+    ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
+
+    # 3-night trips with the full day COUNT, but padded with identical filler
+    # days (day 3 repeats day 2) — the model's way of hitting a day count.
+    dup_days = [_day(1), _day(2), {**_day(3), "title": _day(2)["title"],
+                                   "description": _day(2)["description"],
+                                   "schedule": _day(2)["schedule"]}]
+    scenarios = [
+        _make_scenario_with_days("Early September", dup_days),
+        _make_scenario_with_days("Late August", dup_days),
+    ]
+
+    payload = await generate_scenarios(ctx, "Santorini", scenarios)
+
+    # Padded/placeholder days are rejected with a corrective message.
+    assert payload["scenarios"] == []
+    assert "placeholder" in payload["error"].lower() or "distinct" in payload["error"].lower()
+    assert agent_deps.day_validation_retries == 1
+
+
+@pytest.mark.asyncio
+async def test_generate_scenarios_backfills_travelers_and_titles(agent_deps):
+    from app.agent.agent import generate_scenarios
+    from pydantic_ai import RunContext
+
+    # The party size searched this run; the model left travelers at the default.
+    agent_deps.party_size = 2
+    ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
+
+    # Complete, distinct day plans (so the day guard passes), but day 1 has no
+    # title and the scenario's travelers field is the default 1.
+    days = [_day(1, title=None), _day(2), _day(3)]
+    scenarios = [
+        _make_scenario_with_days("Early September", days, travelers=1),
+        _make_scenario_with_days("Late August", days, travelers=1),
+    ]
+
+    payload = await generate_scenarios(ctx, "Santorini", scenarios)
+
+    assert len(payload["scenarios"]) == 2
+    # travelers is backfilled from the searched party size for per-person fares.
+    assert all(s["travelers"] == 2 for s in payload["scenarios"])
+    # The missing day-1 title is backfilled (derived from the description).
+    day1 = payload["scenarios"][0]["itinerary"]["days"][0]
+    assert day1["title"] and day1["title"].strip()
+
+
 @pytest.mark.asyncio
 async def test_search_ground_transport_builds_query_and_threads_currency(agent_deps, monkeypatch):
     from app.agent import agent as agent_module
@@ -209,8 +295,9 @@ async def test_generate_scenarios_normalizes_totals_and_payload(agent_deps):
     from app.domain import UserPreferences
 
     agent_deps.user_preferences = UserPreferences(currency="USD")
-    # Isolate normalization from the day-completeness guard (covered separately).
-    agent_deps.day_validation_retries = 1
+    # Isolate normalization from the day-plan guard (covered separately) by
+    # exhausting its retry budget.
+    agent_deps.day_validation_retries = 2
     ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
 
     scenarios = [
@@ -264,14 +351,20 @@ async def test_generate_scenarios_rejects_incomplete_day_plan(agent_deps):
 
     payload = await generate_scenarios(ctx, "Santorini", scenarios)
 
-    # The incomplete plan is rejected once with a corrective message...
+    # The incomplete plan is rejected with a corrective message...
     assert payload["scenarios"] == []
     assert "error" in payload
     assert "day" in payload["error"].lower()
     assert agent_deps.day_validation_retries == 1
 
-    # ...but the guard only fires once per run, so a retry proceeds (and renders),
-    # preventing an infinite correction loop even if the model can't comply.
+    # ...the guard fires at most twice per run (one correction for "too few
+    # days", one for "padded/duplicate days"), then stands aside...
     payload2 = await generate_scenarios(ctx, "Santorini", scenarios)
-    assert len(payload2["scenarios"]) == 2
+    assert payload2["scenarios"] == []
+    assert agent_deps.day_validation_retries == 2
+
+    # ...so a third call proceeds and renders, preventing an infinite correction
+    # loop even if the model can't comply.
+    payload3 = await generate_scenarios(ctx, "Santorini", scenarios)
+    assert len(payload3["scenarios"]) == 2
 

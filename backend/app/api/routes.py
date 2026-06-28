@@ -250,6 +250,14 @@ async def copilotkit_endpoint(
     # (e.g. a 422) is returned untouched.
     body_iterator = getattr(response, "body_iterator", None)
     if body_iterator is not None:
+        # Defeat SSE buffering so AG-UI events reach the browser token-by-token
+        # rather than in one batch at the end. `no-transform` stops proxies from
+        # compressing/coalescing the stream, and `X-Accel-Buffering: no` disables
+        # nginx-style response buffering in front of the app. (The pydantic-ai
+        # AG-UI adapter sets only the `text/event-stream` content type.)
+        response.headers["Cache-Control"] = "no-cache, no-transform"
+        response.headers["X-Accel-Buffering"] = "no"
+        response.headers["Connection"] = "keep-alive"
         # Tee the AG-UI event stream to the logger first (innermost wrapper) so
         # we see the raw events — including RUN_ERROR — exactly as sent. Error
         # events always log; the full stream logs at DEBUG (LOG_LEVEL=DEBUG).
