@@ -50,11 +50,25 @@ def _month_to_range(month: str) -> tuple[str, str]:
 llm_model = settings.llm_model
 
 # Define the PydanticAI Agent
+# Retry budgets (per pydantic-ai `retries`): give the output path a few attempts
+# so a transient empty/invalid final completion is retried — with the error left
+# in context so the model can recover, rather than crashing the whole turn.
+# `tools` covers tool-output validation.
 kompass_agent = Agent(
     llm_model,
     deps_type=AgentDependencies,
     output_type=Union[str, Scenario],
-    model_settings={'thinking': True, 'thinking_level': 'high'},
+    retries={'tools': 2, 'output': 3},
+    # Low temperature for more deterministic, instruction-following behavior —
+    # in particular, reliably calling `ask_clarifying_question` for concrete
+    # questions rather than drifting into plain-text prose. (Merged with the
+    # per-request `timeout` set on dispatch.)
+    #
+    # `thinking: False` disables Gemini's reasoning phase (maps to
+    # thinking_budget=0 on gemini-2.5-flash). On a large final-synthesis context
+    # the model would otherwise spend the whole request budget "thinking" and
+    # return an empty completion with no first token, stalling the run.
+    model_settings={'temperature': 0.2, 'thinking': False},
 )
 
 @kompass_agent.tool

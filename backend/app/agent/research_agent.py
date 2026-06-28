@@ -44,6 +44,11 @@ research_agent = Agent(
     output_type=str,
     capabilities=[WebSearch()],
     instructions=RESEARCH_INSTRUCTIONS,
+    # Disable Gemini's reasoning phase (thinking_budget=0 on gemini-2.5-flash).
+    # These are quick, grounded lookups returning plain text — thinking only adds
+    # latency, and several of these run in parallel per turn, so the saved time
+    # compounds and keeps context out of the slow/fragile final synthesis path.
+    model_settings={'thinking': False},
 )
 
 

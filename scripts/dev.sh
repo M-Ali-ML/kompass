@@ -124,10 +124,17 @@ else
 fi
 FE_PID=$!
 
-echo -e "${GREEN}Both servers are starting up in the background.${NC}"
-echo -e "Logs are being written to: ${YELLOW}$LOG_FILE${NC}"
-echo -e "${BLUE}Streaming logs (Press Ctrl+C to stop servers and delete log file):${NC}"
 echo "--------------------------------------------------------"
+if [ "$PROD" = true ]; then
+    echo -e "${BLUE}Mode:${NC}     ${GREEN}PROD${NC}"
+else
+    echo -e "${BLUE}Mode:${NC}     ${GREEN}DEV${NC}"
+fi
+echo -e "${BLUE}Frontend:${NC} ${GREEN}http://localhost:3000${NC}"
+echo -e "${BLUE}Backend:${NC}  ${GREEN}http://localhost:8000${NC}"
+echo -e "${BLUE}Logs:${NC}     ${YELLOW}$LOG_FILE${NC}"
+echo "--------------------------------------------------------"
+echo -e "${BLUE}Press Ctrl+C to stop servers and delete log file.${NC}"
 
-# Tail the log file to show output to the user
-tail -n +1 -f "$LOG_FILE"
+# Keep the script alive so the servers keep running (logs go to the file, not here)
+wait

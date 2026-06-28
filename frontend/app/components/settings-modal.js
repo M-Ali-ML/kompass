@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Check, Plane, Loader2, Tag, MapPin } from "lucide-react";
+import { X, Check, Plane, Loader2, Tag, MapPin, RotateCcw } from "lucide-react";
 import { getProfile, updateProfile } from "../lib/trips-api";
 import { MODE_GLYPH } from "../lib/transport";
 
@@ -37,6 +37,7 @@ export function SettingsModal({ onClose }) {
   const [prefs, setPrefs] = useState(EMPTY_PREFS);
   const [loadState, setLoadState] = useState("loading");
   const [saveState, setSaveState] = useState("idle");
+  const [resetState, setResetState] = useState("idle");
   const [vibeDraft, setVibeDraft] = useState("");
 
   useEffect(() => {
@@ -116,11 +117,29 @@ export function SettingsModal({ onClose }) {
     }
   };
 
+  const handleReset = async () => {
+    if (resetState === "resetting") return;
+    if (typeof window !== "undefined" && !window.confirm("Remove all saved travel preferences?")) {
+      return;
+    }
+    setResetState("resetting");
+    setSaveState("idle");
+    try {
+      await updateProfile({ ...EMPTY_PREFS });
+      setPrefs({ ...EMPTY_PREFS });
+      setVibeDraft("");
+      setResetState("idle");
+    } catch (e) {
+      console.error("Failed to reset profile", e);
+      setResetState("error");
+    }
+  };
+
   if (typeof document === "undefined") return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-[1300] flex items-end sm:items-center justify-center p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Travel preferences"
@@ -128,6 +147,8 @@ export function SettingsModal({ onClose }) {
       <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative w-full max-w-[520px] max-h-[92vh] sm:max-h-[88vh] flex flex-col rounded-t-3xl sm:rounded-3xl bg-surface pink-shadow-deep overflow-hidden">
+        {/* Mobile bottom-sheet grab handle */}
+        <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 z-20 h-1.5 w-10 rounded-full bg-foreground/20" />
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-pink-100">
           <div>
@@ -341,7 +362,7 @@ export function SettingsModal({ onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-pink-100 flex flex-col gap-1.5">
+        <div className="px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-pink-100 flex flex-col gap-1.5">
           <button
             type="button"
             onClick={handleSave}
@@ -366,6 +387,28 @@ export function SettingsModal({ onClose }) {
               "Couldn't save — retry"
             ) : (
               "Save preferences"
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={loadState !== "ready" || resetState === "resetting"}
+            className={`w-full py-1.5 text-xs font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-60 ${
+              resetState === "error"
+                ? "text-rose-600 hover:text-rose-700"
+                : "text-foreground/50 hover:text-rose-600"
+            }`}
+          >
+            {resetState === "resetting" ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Resetting…
+              </>
+            ) : resetState === "error" ? (
+              "Couldn't reset — retry"
+            ) : (
+              <>
+                <RotateCcw className="w-3.5 h-3.5" /> Reset all preferences
+              </>
             )}
           </button>
           <button

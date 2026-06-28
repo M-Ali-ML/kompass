@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.ui.ag_ui import AGUIAdapter
+from pydantic_ai.usage import UsageLimits
 
 from app.agent.agent import kompass_agent
 from app.agent.dependency import get_agent_dependencies
@@ -39,6 +40,51 @@ _PREFERENCE_FIELDS = (
     "hotel_class",
     "vibe_tags",
 )
+
+
+def _log_agui_chunk(chunk) -> None:
+    """Log AG-UI SSE events streamed back to the client.
+
+    Each chunk is one or more SSE lines (``data: {json}``). Error events
+    (``RUN_ERROR``) are always logged at ERROR level so failures surface in the
+    logs immediately; the full event stream is logged at DEBUG only — set
+    ``LOG_LEVEL=DEBUG`` to see every AG-UI interaction.
+    """
+    debug = logger.isEnabledFor(logging.DEBUG)
+    try:
+        text = chunk.decode("utf-8", "replace") if isinstance(chunk, (bytes, bytearray)) else str(chunk)
+    except Exception:  # noqa: BLE001 - logging must never break the stream
+        return
+
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[len("data:"):].strip()
+        if not payload:
+            continue
+
+        event_type = payload
+        try:
+            data = json.loads(payload)
+            event_type = data.get("type", "?")
+        except (ValueError, TypeError):
+            pass
+
+        is_error = isinstance(event_type, str) and "ERROR" in event_type.upper()
+        if is_error:
+            # Full payload, always — this is the line you want when a run fails.
+            logger.error(f"AG-UI {event_type}: {payload}")
+        elif debug:
+            snippet = payload if len(payload) <= 2000 else f"{payload[:2000]}… ({len(payload)} bytes)"
+            logger.debug(f"AG-UI {event_type}: {snippet}")
+
+
+async def _log_agui_events(body_iterator):
+    """Tee the AG-UI streaming body through :func:`_log_agui_chunk` for visibility."""
+    async for chunk in body_iterator:
+        _log_agui_chunk(chunk)
+        yield chunk
 
 
 def _message_role(message) -> str | None:
@@ -187,6 +233,11 @@ async def copilotkit_endpoint(
         agent=kompass_agent,
         deps=deps,
         on_complete=on_complete,
+        # Hardening: bound a single turn so a hung model call can't stall the
+        # stream for minutes (logs showed a 600s default), and cap the agent
+        # loop so a runaway tool/retry cycle can't burn unbounded time/cost.
+        model_settings={"timeout": 60.0},
+        usage_limits=UsageLimits(request_limit=30),
     )
 
     # The agent runs lazily as the streaming body is consumed (after this
@@ -198,12 +249,18 @@ async def copilotkit_endpoint(
     # streaming responses expose `body_iterator`; a non-streaming error response
     # (e.g. a 422) is returned untouched.
     body_iterator = getattr(response, "body_iterator", None)
-    if thread_id and body_iterator is not None:
-        response.body_iterator = stream_with_attributes(
-            body_iterator,
-            session_id=thread_id,
-            tags=["kompass-agent"],
-        )
+    if body_iterator is not None:
+        # Tee the AG-UI event stream to the logger first (innermost wrapper) so
+        # we see the raw events — including RUN_ERROR — exactly as sent. Error
+        # events always log; the full stream logs at DEBUG (LOG_LEVEL=DEBUG).
+        body_iterator = _log_agui_events(body_iterator)
+        if thread_id:
+            body_iterator = stream_with_attributes(
+                body_iterator,
+                session_id=thread_id,
+                tags=["kompass-agent"],
+            )
+        response.body_iterator = body_iterator
 
     return response
 

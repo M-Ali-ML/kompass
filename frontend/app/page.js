@@ -7,23 +7,27 @@ import { AlertTriangle, X } from "lucide-react";
 import { AppHeader } from "./components/app-header";
 import { TripSidebar } from "./components/trip-sidebar";
 import { ResizeHandle } from "./components/resize-handle";
+import { ChatStatus } from "./components/chat-status";
 import { MapStateProvider } from "./components/map/map-context";
 import { TripPanel } from "./components/map/trip-panel";
 import { useActiveTrip } from "./hooks/use-active-trip";
 import { useTripTools } from "./hooks/use-trip-tools";
 import { useMediaQuery } from "./hooks/use-media-query";
 
-// Candy styling for the agent's built-in reasoning ("thinking") bubble. The
-// AG-UI REASONING_* events already render collapsibly via CopilotKit's
-// CopilotChatReasoningMessage — these classes just dress it in the pink,
-// rounded look of the rest of the chat. Passed through the nested chatView →
-// messageView → reasoningMessage slot.
+// Custom slots for the chat's message view:
+// - `reasoningMessage`: candy styling for the agent's built-in reasoning
+//   ("thinking") bubble (AG-UI REASONING_* events render via
+//   CopilotChatReasoningMessage) — dressed in the pink, rounded chat look.
+// - `cursor`: replaces the default bare loading dot with `ChatStatus`, a live
+//   "what's happening" indicator (current tool / generic thinking) inline at
+//   the tail of the conversation.
 const CHAT_VIEW_SLOTS = {
   messageView: {
     reasoningMessage: {
       className:
         "!my-2 !rounded-2xl !border !border-pink-100 !bg-pink-50/50 !px-3.5 !py-2.5 !text-foreground/80",
     },
+    cursor: ChatStatus,
   },
 };
 
@@ -178,7 +182,7 @@ export default function Home() {
             in/out; backdrop closes it. */}
         {!isDesktop && (
           <div
-            className={`fixed inset-0 z-50 ${drawerOpen ? "" : "pointer-events-none"}`}
+            className={`fixed inset-0 z-[1300] ${drawerOpen ? "" : "pointer-events-none"}`}
             aria-hidden={!drawerOpen}
           >
             <div

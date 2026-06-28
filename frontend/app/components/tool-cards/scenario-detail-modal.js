@@ -139,10 +139,12 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
   const returnMin = journeys.length > 1 ? journeyMinutes(journeys[journeys.length - 1]) : 0;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[1300] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative w-full max-w-[640px] max-h-[92vh] sm:max-h-[88vh] flex flex-col rounded-t-3xl sm:rounded-3xl bg-surface pink-shadow-deep overflow-hidden">
+        {/* Mobile bottom-sheet grab handle */}
+        <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 z-20 h-1.5 w-10 rounded-full bg-white/70 shadow-sm" />
         {/* Header */}
         <div className="relative overflow-hidden px-5 pt-5 pb-3 min-h-[104px] flex flex-col justify-end border-b border-pink-100">
           <TripBackdrop tripId={backdropTripId} fade="bottom" />
@@ -430,7 +432,7 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-pink-100 flex flex-col gap-1.5">
+        <div className="px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-pink-100 flex flex-col gap-1.5">
           {savedId ? (
             <button
               type="button"
