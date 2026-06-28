@@ -286,7 +286,7 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
                               href={flightHref}
                               target="_blank"
                               rel="noopener noreferrer"
-                              title="View this flight on Google Flights"
+                              title={leg.booking_link ? "Book this flight on Kiwi.com" : "View this flight on Google Flights"}
                               className="group inline-flex items-center gap-1 text-sm font-bold text-foreground hover:text-primary"
                             >
                               {leg.origin} → {leg.destination}

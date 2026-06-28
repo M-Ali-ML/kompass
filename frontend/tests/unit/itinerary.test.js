@@ -189,8 +189,16 @@ describe("cleanCarrier", () => {
     expect(cleanCarrier("")).toBe("");
   });
 
+  it("drops Kiwi routing labels (not real carriers)", () => {
+    expect(cleanCarrier("Direct")).toBe("");
+    expect(cleanCarrier("via Munich")).toBe("");
+    expect(cleanCarrier("via Munich, Vienna")).toBe("");
+  });
+
   it("keeps real airline names", () => {
     expect(cleanCarrier("Aegean Airlines")).toBe("Aegean Airlines");
+    // "Viva Aerobus" starts with "Vi" but not the "via " routing prefix.
+    expect(cleanCarrier("Viva Aerobus")).toBe("Viva Aerobus");
   });
 });
 

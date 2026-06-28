@@ -37,13 +37,19 @@ class Settings(BaseSettings):
     image_scene_model: str = Field("google:gemini-2.5-flash-lite", alias="IMAGE_SCENE_MODEL")
     background_image_enabled: bool = Field(True, alias="BACKGROUND_IMAGE_ENABLED")
 
-    # Flights provider (SerpApi Google Flights). Optional: when unset, the
-    # flight tools degrade to the grounded search_web tool.
+    # Flights: official Kiwi.com MCP server (remote, streamable HTTP, no API key).
+    # Override only to point at a different host/proxy.
+    kiwi_mcp_url: str = Field("https://mcp.kiwi.com/mcp", alias="KIWI_MCP_URL")
+
+    # Accommodations provider (SerpApi Google Hotels). Optional: when unset, the
+    # accommodation tool degrades to the grounded search_web tool. (Flights no
+    # longer use SerpApi — they use the keyless Kiwi MCP above.)
     serpapi_api_key: Optional[SecretStr] = Field(None, alias="SERPAPI_API_KEY")
 
-    # Data MCP mode. "live" calls SerpApi (costs money); "mock" returns
+    # Accommodations MCP mode. "live" calls SerpApi (costs money); "mock" returns
     # deterministic, clearly-flagged fake data with NO network calls / no key
-    # (handy for dev so you don't burn the shared SerpApi quota).
+    # (handy for dev so you don't burn the shared SerpApi quota). Flights always
+    # hit the live Kiwi MCP and are unaffected by this flag.
     mcp_mode: str = Field("live", alias="MCP_MODE")
     # Optional path; when set, every MCP tool call's request/response is
     # appended as a JSON line for inspection.

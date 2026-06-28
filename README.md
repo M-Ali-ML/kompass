@@ -2,6 +2,8 @@
 
 Kompass is an autonomous travel planning application that automatically optimizes itineraries, budgets, and connections. It features a FastAPI backend utilizing PydanticAI (powered by Gemini) and an event-driven Next.js frontend integrated with CopilotKit.
 
+> 🧭 **See the architecture & full request flow visually:** [m-ali-ml.github.io/kompass](https://m-ali-ml.github.io/kompass/) — an interactive, step-by-step walkthrough of the whole system.
+
 ---
 
 ## 📁 Repository Structure
@@ -19,6 +21,7 @@ Kompass is an autonomous travel planning application that automatically optimize
 
 For detailed guides on the implemented system, refer to the post-building docs:
 
+* [🧭 Interactive Flow Visualization](https://m-ali-ml.github.io/kompass/) — visual, piece-by-piece walkthrough of the whole app (source: [`artifacts/kompass-flow.html`](./artifacts/kompass-flow.html))
 * [Architecture & Flow Guide](./docs/architecture.md)
 * [Design & Styling Specs](./docs/design.md)
 * [Product & Feature Status](./docs/product.md)

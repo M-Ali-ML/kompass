@@ -5,7 +5,7 @@ This document details the *implemented* system architecture of the Kompass trave
 ---
 
 ## 1. Architectural Overview
-The system consists of a Python FastAPI backend and a Next.js frontend, integrated using the AG-UI protocol and CopilotKit. The backend follows a hexagonal (ports & adapters) design, talks to two data MCP servers over stdio (**flights** and **accommodations**, both backed by SerpApi), persists trips/preferences/saved scenarios in SQLite, and uses a grounded web-search sub-agent (Gemini Google grounding) for live research, accommodation/flight price fallback, and ground-transport (train/bus/ferry) routing. Agent runs are traced to Langfuse via OpenTelemetry.
+The system consists of a Python FastAPI backend and a Next.js frontend, integrated using the AG-UI protocol and CopilotKit. The backend follows a hexagonal (ports & adapters) design. For **flights** it connects directly to the official **Kiwi.com MCP** (remote, streamable HTTP, no API key); for **accommodations** it runs a local **SerpApi** Google Hotels MCP server over stdio. It persists trips/preferences/saved scenarios in SQLite, and uses a grounded web-search sub-agent (Gemini Google grounding) for live research, accommodation/flight price fallback, and ground-transport (train/bus/ferry) routing. Agent runs are traced to Langfuse via OpenTelemetry.
 
 ```
         +-----------------------------------------------+
@@ -20,7 +20,7 @@ The system consists of a Python FastAPI backend and a Next.js frontend, integrat
         +-----------------------+-----------------------+
         |                 FastAPI Web App               |
         |  main.py (lifespan: telemetry + init_db +     |
-        |   flights MCP + accommodations MCP)           |
+        |   Kiwi flights MCP + accommodations MCP)      |
         |  api/routes.py (/api/copilotkit + REST)       |
         +----------+-----------------------+------------+
                    |                       |
@@ -33,9 +33,9 @@ The system consists of a Python FastAPI backend and a Next.js frontend, integrat
         +----------+-------+----------------+----------------+
         |          |       |                |                |
         v          v       v                v                v
-  Prompt Svc  Flights MCP  Accommodations  Research sub-agent  Repositories
-  (file)      (stdio,      MCP (stdio,     (Gemini grounding:  (trips/profile/
-              SerpApi)     SerpApi)        research, fallback,  saved scenarios)
+  Prompt Svc  Flights      Accommodations  Research sub-agent  Repositories
+  (file)      (Kiwi MCP,   MCP (stdio,     (Gemini grounding:  (trips/profile/
+              remote)      SerpApi)        research, fallback,  saved scenarios)
                                            ground transport)
 ```
 
@@ -51,7 +51,7 @@ Located in `backend/app/domain/`:
 * [trip.py](../backend/app/domain/trip.py) — `TripRequest` model (destination, duration, month, budget, traveler count).
 * [user_preferences.py](../backend/app/domain/user_preferences.py) — `UserPreferences` model (`home_city`/departure origin, direct flights only, preferred transit modes, hotel class, vibe tags, `currency`) plus a `merged_with()` layering helper.
 * [itinerary.py](../backend/app/domain/itinerary.py) — `Itinerary` wrapping `Leg` (with `TransportMode` enum: flight/train/bus/ferry/car/other), `Accommodation` (with optional `booking_link`), and `DaySummary` (each day has a `day_number`, `title`, `description`, and a `schedule` of time-blocked `PlanItem`s with `period`/`activity`/`details`/`location`).
-* [flights.py](../backend/app/domain/flights.py) — `FlightOption` and `FlightDateOption` returned by the flight adapter.
+* [flights.py](../backend/app/domain/flights.py) — `FlightOption` (incl. `booking_link` deep link and a routing-label `airline`, since Kiwi exposes no carrier name) and `FlightDateOption` returned by the flight adapter.
 * [accommodations.py](../backend/app/domain/accommodations.py) — `AccommodationOption` (name, property type, nightly + total rate, currency, rating, reviews, hotel class, amenities, link, coordinates, `estimated`) returned by the accommodations adapter.
 * [scenario.py](../backend/app/domain/scenario.py) — `Scenario` model plus `CostBreakdown` (transportation / accommodation / grand_total) and `StressFactors` (layover count, overnight travel, tight connection, total travel hours). Adds `comparison_label`, `start_date`/`end_date`, and `highlights`.
 * **ORM models** in `backend/app/domain/models/`: [trip.py](../backend/app/domain/models/trip.py) (`Trip` with a `message_history` JSON column, `Message`), [profile.py](../backend/app/domain/models/profile.py) (`UserProfile` singleton), and [saved_scenario.py](../backend/app/domain/models/saved_scenario.py) (`SavedScenario`), all registered on the shared `Base.metadata`.
@@ -68,7 +68,7 @@ Located in `backend/app/ports/`:
 ### C. Adapters (Implementations)
 Located in `backend/app/adapters/`:
 * [file_prompt_service.py](../backend/app/adapters/file_prompt_service.py) — `FilePromptService` loading prompt markdown.
-* [mcp_flight_service.py](../backend/app/adapters/mcp_flight_service.py) — `MCPFlightServiceAdapter` holding a persistent stdio MCP session and parsing results into `FlightOption` / `FlightDateOption`.
+* [mcp_flight_service.py](../backend/app/adapters/mcp_flight_service.py) — `KiwiMCPFlightServiceAdapter` connecting to the remote Kiwi.com MCP (`KIWI_MCP_URL`, default `https://mcp.kiwi.com/mcp`) over streamable HTTP and parsing Kiwi's `search-flight` results into `FlightOption` / `FlightDateOption`. `search_flights` is one call plus client-side `max_stops` / `preferred_time` filtering (Kiwi has no such server-side filters); `find_cheapest_dates` fires several ±3-day flex-window searches **concurrently** (bounded by `KIWI_DATE_SAMPLES`) and keeps the cheapest fare per departure date. Each search uses a short-lived connection; any error degrades to an empty result (no fabricated data).
 * [mcp_accommodation_service.py](../backend/app/adapters/mcp_accommodation_service.py) — `MCPAccommodationServiceAdapter` (same persistent stdio lifecycle as the flights adapter) parsing results into `AccommodationOption`.
 * [sqlite_trip_repository.py](../backend/app/adapters/sqlite_trip_repository.py), [sqlite_user_profile_repository.py](../backend/app/adapters/sqlite_user_profile_repository.py), and [sqlite_saved_scenario_repository.py](../backend/app/adapters/sqlite_saved_scenario_repository.py) — SQLAlchemy async implementations of the repository ports.
 
@@ -80,12 +80,11 @@ Located in `backend/app/adapters/`:
   * `user_profiles` — singleton of global preferences.
   * `saved_scenarios` — user-bookmarked scenarios. Stores the full `Scenario` JSON plus denormalized, queryable columns (`destination`, `grand_total`, `stress_score`, dates, `currency`, labels) and an optional `trip_id` (SET NULL so saves outlive a deleted conversation).
 
-### E. MCP Servers
-Located in `backend/app/mcp_servers/`:
-* [flights_server.py](../backend/app/mcp_servers/flights_server.py) — a standalone FastMCP stdio server exposing `search_flights` and `find_cheapest_dates`, backed by the **SerpApi Google Flights API** (key via `SERPAPI_API_KEY`, exported from `app.config` so the subprocess inherits it). `find_cheapest_dates` probes a bounded set of candidate dates (`FLIGHTS_DATE_SAMPLES`, default 4) since SerpApi has no future date-grid.
-* [accommodations_server.py](../backend/app/mcp_servers/accommodations_server.py) — a standalone FastMCP stdio server exposing `search_accommodations`, backed by the **SerpApi Google Hotels API** (reuses `SERPAPI_API_KEY`). Returns nightly + total rates, ratings, amenities, and links (cheapest first, capped by `ACCOMMODATIONS_TOP_N`).
-* [_dev.py](../backend/app/mcp_servers/_dev.py) — shared dev helpers: `mock_mode()` (`MCP_MODE=mock` returns deterministic, clearly-flagged fake data with **no** network calls / no key — handy so dev doesn't burn the shared SerpApi quota) and `log_call()` (when `MCP_LOG_FILE` is set, every tool request/response is appended as a JSON line for inspection).
-* **Reliability contract:** when the key is missing or SerpApi errors/returns nothing, the tools return `available: false` with **no fabricated data**, and the agent falls back to `search_web`. We never invent prices.
+### E. Flight & Accommodation data sources
+* **Flights — Kiwi.com MCP (remote):** the agent reaches Kiwi's official MCP `search-flight` tool directly through `KiwiMCPFlightServiceAdapter` (above). There is no local flights MCP server — Kiwi is already an MCP server, so the adapter is the only translation layer. No API key is required.
+* [accommodations_server.py](../backend/app/mcp_servers/accommodations_server.py) — a standalone FastMCP stdio server exposing `search_accommodations`, backed by the **SerpApi Google Hotels API** (`SERPAPI_API_KEY`, exported from `app.config` so the subprocess inherits it). Returns nightly + total rates, ratings, amenities, and links (cheapest first, capped by `ACCOMMODATIONS_TOP_N`).
+* [_dev.py](../backend/app/mcp_servers/_dev.py) — shared dev helpers for the accommodations server: `mock_mode()` (`MCP_MODE=mock` returns deterministic, clearly-flagged fake data with **no** network calls / no key — handy so dev doesn't burn the SerpApi quota) and `log_call()` (when `MCP_LOG_FILE` is set, every tool request/response is appended as a JSON line for inspection).
+* **Reliability contract:** when a source errors or returns nothing (Kiwi unreachable, or SerpApi key missing/erroring), the tools return **no fabricated data** (flights: an empty option list; accommodations: `available: false`), and the agent falls back to `search_web`. We never invent prices.
 
 ---
 
@@ -95,7 +94,7 @@ The agent framework is managed via PydanticAI.
 * **Agent Definition:** [agent.py](../backend/app/agent/agent.py) instantiates `kompass_agent` with `output_type=Union[str, Scenario]`, `deps_type=AgentDependencies`, and `model_settings={'thinking': True}`. Model selected from `settings.llm_model` (default `google:gemini-2.5-pro`).
 * **Agent Tools:**
   * `gather_preferences` — extracts/registers `UserPreferences` (layered via `merged_with`) and persists them to the global profile.
-  * `find_cheapest_dates` / `search_flights` — **live structured Google Flights** (SerpApi) via the flights MCP, currency-aware and honoring `direct_flights_only`. Fall back to `search_web` when `available: false`.
+  * `find_cheapest_dates` / `search_flights` — **live structured flights** via the remote Kiwi.com MCP, currency-aware and honoring `direct_flights_only` (applied client-side). `find_cheapest_dates` samples a month with concurrent ±3-day flex searches. Fall back to `search_web` when no options are returned.
   * `search_accommodations` — **live structured Google Hotels** (SerpApi) via the accommodations MCP, currency-aware, supports `max_price` / `min_rating`. Falls back to `search_web` when `available: false`.
   * `search_web` — grounded research sub-agent (Gemini Google grounding); primary source for destination knowledge and the price fallback for flights/lodging.
   * `search_ground_transport` — grounded train/bus/ferry routing via the research sub-agent (operators, times, duration, frequency, fare range) used to build non-flight `Leg`s and onward hops after a flight.
@@ -115,7 +114,7 @@ The agent framework is managed via PydanticAI.
 ---
 
 ## 5. Web Service Interface
-* **FastAPI Entrypoint:** [main.py](../backend/app/main.py) — configures CORS (any localhost origin) and a `lifespan` that initializes telemetry, runs `init_db()`, and starts/stops both the flights and accommodations MCP clients (non-fatal if MCP startup fails, since tools degrade gracefully), flushing telemetry on shutdown.
+* **FastAPI Entrypoint:** [main.py](../backend/app/main.py) — configures CORS (any localhost origin) and a `lifespan` that initializes telemetry, runs `init_db()`, and starts/stops the flights (Kiwi MCP reachability probe) and accommodations MCP clients (non-fatal if startup fails, since tools degrade gracefully), flushing telemetry on shutdown.
 * **Endpoints** ([routes.py](../backend/app/api/routes.py)):
   * `GET /health` — health check.
   * `POST /api/copilotkit` — reconstructs effective `UserPreferences` (global profile baseline merged with conversation history), upserts the trip for the thread, dispatches the PydanticAI run to the AG-UI stream (wrapped with Langfuse trace attributes), and persists messages on completion.

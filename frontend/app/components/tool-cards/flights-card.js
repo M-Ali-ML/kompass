@@ -34,7 +34,7 @@ function FlightTile({ o, parameters, currency, minPrice, maxPrice, cheapest }) {
       href={href || undefined}
       target="_blank"
       rel="noopener noreferrer"
-      title="View this route on Google Flights"
+      title={o.booking_link ? "Book this flight on Kiwi.com" : "View this route on Google Flights"}
       className={`group relative block h-full rounded-2xl p-3 transition-colors ${
         cheapest
           ? "bg-pink-50 border-2 border-primary pink-shadow"

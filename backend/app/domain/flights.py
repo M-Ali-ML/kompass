@@ -15,9 +15,18 @@ class FlightOption(BaseModel):
     )
     duration_minutes: int = Field(..., description="Total trip duration in minutes.", ge=0)
     stops: int = Field(..., description="Number of stops/layovers (0 = direct).", ge=0)
-    airline: str = Field(..., description="Primary operating airline name or code.")
+    airline: str = Field(
+        "",
+        description=(
+            "Operating airline name, or a routing label ('Direct' / 'via <city>') when the "
+            "provider does not expose a carrier (e.g. Kiwi's multi-carrier itineraries)."
+        ),
+    )
     price: float = Field(..., description="Total price for all passengers.", ge=0.0)
     currency: str = Field("EUR", description="ISO 4217 currency code for the price.")
+    booking_link: str | None = Field(
+        None, description="Direct deep link to book/view this itinerary (provider URL)."
+    )
     estimated: bool = Field(
         False,
         description="True when the price is a synthetic estimate (live data was unavailable).",

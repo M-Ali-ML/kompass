@@ -115,11 +115,15 @@ export const journeyMinutes = (journey) => {
   return Number.isFinite(d) && d > 0 ? Math.round(d) : 0;
 };
 
-// Drop placeholder carriers (e.g. "TBD", "Flight (Direct)") so we only show a
-// real airline name.
+// Drop placeholder / non-carrier labels so we only show a real airline name.
+// Besides the old placeholders ("TBD", "Flight (Direct)"), the Kiwi flight
+// source has no carrier field and emits routing labels instead ("Direct",
+// "via Munich") — those describe the routing, not an airline, and the leg
+// already renders its route + stops, so they must not show up as a carrier.
 export const cleanCarrier = (carrier) => {
   const t = String(carrier || "").trim();
   if (!t || /^tbd$/i.test(t) || /^flight\b/i.test(t)) return "";
+  if (/^direct$/i.test(t) || /^via\b/i.test(t)) return "";
   return t;
 };
 

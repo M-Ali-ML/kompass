@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from unittest.mock import MagicMock
 
@@ -7,11 +9,11 @@ import app.agent.agent as agent_mod
 import app.agent.research_agent as research_mod
 from app.agent.agent import _month_to_range, find_cheapest_dates, search_flights, search_web
 from app.agent.dependency import AgentDependencies
-from app.adapters.mcp_flight_service import MCPFlightServiceAdapter
+from app.adapters import mcp_flight_service
+from app.adapters.mcp_flight_service import KiwiMCPFlightServiceAdapter, _extract_items
 from app.domain import FlightDateOption, FlightOption, UserPreferences
 from app.ports.flight_service import FlightServicePort
 from app.ports.prompt_service import PromptServicePort
-from app.mcp_servers import flights_server
 
 
 # --- Domain / preferences -----------------------------------------------------
@@ -42,217 +44,211 @@ def test_month_to_range_name_with_year():
     assert _month_to_range("September 2027") == ("2027-09-01", "2027-09-30")
 
 
-# --- No API key → degrade to search_web (no fabricated data) -------------------
+# --- Kiwi result extraction ---------------------------------------------------
 
-def test_search_flights_unavailable_without_api_key(monkeypatch):
-    monkeypatch.setattr(flights_server, "_api_key", lambda: None)
-    result = flights_server.search_flights("BER", "ATH", "2026-09-10", currency="EUR")
-    assert result["options"] == []
-    assert result["estimated"] is False
-    assert result["available"] is False
-    assert result["currency"] == "EUR"
+class _Text:
+    def __init__(self, text):
+        self.text = text
 
 
-def test_find_cheapest_dates_unavailable_without_api_key(monkeypatch):
-    monkeypatch.setattr(flights_server, "_api_key", lambda: None)
-    result = flights_server.find_cheapest_dates(
-        "BER", "ATH", "2026-09-01", "2026-09-30", duration_days=7, currency="GBP"
-    )
-    assert result["options"] == []
-    assert result["available"] is False
-    assert result["currency"] == "GBP"
-
-
-def test_synthetic_estimators_are_gone():
-    # The misleading synthetic generators must no longer exist on the server.
-    assert not hasattr(flights_server, "_synthetic_flights")
-    assert not hasattr(flights_server, "_synthetic_cheapest_dates")
-
-
-# --- Mock mode (MCP_MODE=mock → no network, flagged estimated) -----------------
-
-def test_search_flights_mock_mode_no_network(monkeypatch):
-    monkeypatch.setenv("MCP_MODE", "mock")
-
-    def boom(_params):
-        raise AssertionError("SerpApi must not be called in mock mode")
-
-    monkeypatch.setattr(flights_server, "_serpapi_search", boom)
-    monkeypatch.setattr(flights_server, "_api_key", lambda: None)
-
-    result = flights_server.search_flights("BER", "ATH", "2026-09-10", max_stops=0, currency="EUR")
-    assert result["available"] is True
-    assert result["estimated"] is True
-    assert len(result["options"]) >= 1
-    assert all(o["stops"] <= 0 for o in result["options"])
-
-
-def test_find_cheapest_dates_mock_mode_no_network(monkeypatch):
-    monkeypatch.setenv("MCP_MODE", "mock")
-
-    def boom(_params):
-        raise AssertionError("SerpApi must not be called in mock mode")
-
-    monkeypatch.setattr(flights_server, "_serpapi_search", boom)
-    monkeypatch.setattr(flights_server, "_api_key", lambda: None)
-
-    result = flights_server.find_cheapest_dates(
-        "BER", "ATH", "2026-09-01", "2026-09-30", duration_days=7, currency="USD"
-    )
-    assert result["available"] is True
-    assert result["estimated"] is True
-    assert result["options"][0]["return_date"] is not None
-    assert result["currency"] == "USD"
-
-
-# --- SerpApi parsing (mocked HTTP) --------------------------------------------
-
-_SERPAPI_FLIGHTS_FIXTURE = {
-    "best_flights": [
-        {
-            "flights": [
-                {
-                    "departure_airport": {"id": "BER", "time": "2026-09-10 09:00"},
-                    "arrival_airport": {"id": "MUC", "time": "2026-09-10 10:10"},
-                    "airline": "Lufthansa",
-                },
-                {
-                    "departure_airport": {"id": "MUC", "time": "2026-09-10 11:30"},
-                    "arrival_airport": {"id": "ATH", "time": "2026-09-10 14:45"},
-                    "airline": "Lufthansa",
-                },
-            ],
-            "layovers": [{"duration": 80, "name": "Munich", "id": "MUC"}],
-            "total_duration": 345,
-            "price": 210,
-        }
-    ],
-    "other_flights": [
-        {
-            "flights": [
-                {
-                    "departure_airport": {"id": "BER", "time": "2026-09-10 07:00"},
-                    "arrival_airport": {"id": "ATH", "time": "2026-09-10 10:15"},
-                    "airline": "Aegean Airlines",
-                }
-            ],
-            "layovers": [],
-            "total_duration": 195,
-            "price": 165,
-        }
-    ],
-    "price_insights": {"lowest_price": 165},
-}
-
-
-def test_search_flights_parses_serpapi(monkeypatch):
-    monkeypatch.setattr(flights_server, "_api_key", lambda: "test-key")
-    captured = {}
-
-    def fake_search(params):
-        captured["params"] = params
-        return _SERPAPI_FLIGHTS_FIXTURE
-
-    monkeypatch.setattr(flights_server, "_serpapi_search", fake_search)
-    result = flights_server.search_flights(
-        "ber", "ath", "2026-09-10", passengers=2, max_stops=0, preferred_time="6-20", currency="EUR"
-    )
-
-    assert result["available"] is True
-    assert result["estimated"] is False
-    # Request mapping: one-way, sorted by price, direct-only stops=1, adults, currency, times.
-    assert captured["params"]["type"] == 2
-    assert captured["params"]["stops"] == 1  # max_stops=0 -> nonstop only
-    assert captured["params"]["adults"] == 2
-    assert captured["params"]["currency"] == "EUR"
-    assert captured["params"]["outbound_times"] == "6,20"
-    # Cheapest first; multi-segment parsed with layover count + ISO times.
-    opts = result["options"]
-    assert [o["price"] for o in opts] == [165.0, 210.0]
-    cheapest = FlightOption(**opts[0])
-    assert cheapest.stops == 0 and cheapest.airline == "Aegean Airlines"
-    multi = FlightOption(**opts[1])
-    assert multi.stops == 1
-    assert multi.departure_time == "2026-09-10T09:00:00"
-    assert multi.arrival_time == "2026-09-10T14:45:00"
-
-
-def test_find_cheapest_dates_parses_serpapi(monkeypatch):
-    monkeypatch.setattr(flights_server, "_api_key", lambda: "test-key")
-    monkeypatch.setattr(flights_server, "_DATE_SAMPLES", 3)
-    calls = []
-
-    def fake_search(params):
-        calls.append(params["outbound_date"])
-        # Vary price by day so ranking is observable.
-        price = 100 + len(calls) * 10
-        return {"best_flights": [{"price": price, "flights": []}], "price_insights": {}}
-
-    monkeypatch.setattr(flights_server, "_serpapi_search", fake_search)
-    result = flights_server.find_cheapest_dates(
-        "BER", "ATH", "2026-09-01", "2026-09-30", duration_days=7, currency="USD"
-    )
-
-    assert result["available"] is True
-    assert len(calls) == 3  # bounded by _DATE_SAMPLES
-    parsed = FlightDateOption(**result["options"][0])
-    assert parsed.return_date is not None  # round trip carries a return date
-    assert parsed.currency == "USD"
-    assert result["options"] == sorted(result["options"], key=lambda o: o["price"])
-
-
-# --- Adapter parsing (no subprocess) ------------------------------------------
-
-class _FakeResult:
-    isError = False
-
-    def __init__(self, structured):
+class _Result:
+    def __init__(self, *, text=None, structured=None, is_error=False):
+        self.isError = is_error
         self.structuredContent = structured
-        self.content = []
+        self.content = [_Text(text)] if text is not None else []
+
+
+def test_extract_items_parses_json_text_array():
+    items = _extract_items(_Result(text='[{"price": 100}, {"price": 200}]'))
+    assert [it["price"] for it in items] == [100, 200]
+
+
+def test_extract_items_returns_empty_on_error_string():
+    # Kiwi surfaces some failures as a plain (non-JSON) message — treat as no data.
+    assert _extract_items(_Result(text="Error searching flights: boom")) == []
+    assert _extract_items(_Result()) == []
+
+
+# --- Kiwi adapter: search_flights ---------------------------------------------
+
+def _kiwi_item(*, dep_local, arr_local, price, layovers, deep="https://on.kiwi.com/X", dur=11700):
+    return {
+        "flyFrom": "BER",
+        "flyTo": "ATH",
+        "cityFrom": "Berlin",
+        "cityTo": "Athens",
+        "departure": {"utc": dep_local + "Z", "local": dep_local + ".000"},
+        "arrival": {"utc": arr_local + "Z", "local": arr_local + ".000"},
+        "totalDurationInSeconds": dur,
+        "price": price,
+        "currency": "EUR",
+        "deepLink": deep,
+        "layovers": layovers,
+    }
 
 
 @pytest.mark.asyncio
-async def test_adapter_parses_flight_options_into_domain():
-    adapter = MCPFlightServiceAdapter()
+async def test_search_flights_maps_args_and_options():
+    adapter = KiwiMCPFlightServiceAdapter(url="http://test")
     captured = {}
 
-    async def fake_call_tool(name, arguments):
-        captured["name"] = name
-        captured["arguments"] = arguments
-        return _FakeResult(
-            {
-                "currency": "EUR",
-                "estimated": False,
-                "options": [
-                    {
-                        "origin": "BER",
-                        "destination": "ATH",
-                        "departure_time": "2026-09-10T10:00:00",
-                        "arrival_time": "2026-09-10T13:00:00",
-                        "duration_minutes": 180,
-                        "stops": 0,
-                        "airline": "Aegean Airlines",
-                        "price": 142.0,
-                        "currency": "EUR",
-                        "estimated": False,
-                    }
-                ],
-            }
-        )
+    async def fake_search(arguments):
+        captured["args"] = arguments
+        return [
+            _kiwi_item(
+                dep_local="2026-09-10T09:00:00", arr_local="2026-09-10T14:45:00",
+                price=140, layovers=[{"at": "MUC", "city": "Munich"}], deep=".../BBB", dur=20700,
+            ),
+            _kiwi_item(
+                dep_local="2026-09-10T07:00:00", arr_local="2026-09-10T10:15:00",
+                price=165, layovers=[], deep=".../AAA", dur=11700,
+            ),
+        ]
 
-    adapter.session = MagicMock()
-    adapter.session.call_tool = fake_call_tool
-
+    adapter._search = fake_search
     options = await adapter.search_flights(
-        "BER", "ATH", "2026-09-10", passengers=2, max_stops=0, currency="EUR"
+        "ber", "ath", "2026-09-10", passengers=2, currency="EUR"
     )
-    assert captured["name"] == "search_flights"
-    assert captured["arguments"]["max_stops"] == 0
-    assert captured["arguments"]["currency"] == "EUR"
+
+    # Outgoing Kiwi args: upper-cased IATA, dd/mm/yyyy date, adults, currency, price sort.
+    args = captured["args"]
+    assert args["flyFrom"] == "BER" and args["flyTo"] == "ATH"
+    assert args["departureDate"] == "10/09/2026"
+    assert args["passengers"] == {"adults": 2}
+    assert args["curr"] == "EUR"
+    assert args["sort"] == "price"
+
+    # Cheapest-first; routing label stands in for the (absent) carrier name.
+    assert [o.price for o in options] == [140.0, 165.0]
+    cheapest = options[0]
+    assert isinstance(cheapest, FlightOption)
+    assert cheapest.stops == 1
+    assert cheapest.airline == "via Munich"
+    assert cheapest.booking_link == ".../BBB"
+    assert cheapest.duration_minutes == 345
+    assert cheapest.departure_time == "2026-09-10T09:00:00"  # ISO, millis stripped
+    assert options[1].airline == "Direct"
+
+
+@pytest.mark.asyncio
+async def test_search_flights_filters_max_stops():
+    adapter = KiwiMCPFlightServiceAdapter(url="http://test")
+
+    async def fake_search(arguments):
+        return [
+            _kiwi_item(dep_local="2026-09-10T09:00:00", arr_local="2026-09-10T14:45:00",
+                       price=140, layovers=[{"at": "MUC", "city": "Munich"}]),
+            _kiwi_item(dep_local="2026-09-10T07:00:00", arr_local="2026-09-10T10:15:00",
+                       price=165, layovers=[]),
+        ]
+
+    adapter._search = fake_search
+    options = await adapter.search_flights("BER", "ATH", "2026-09-10", max_stops=0)
     assert len(options) == 1
-    assert isinstance(options[0], FlightOption)
-    assert options[0].airline == "Aegean Airlines"
-    assert options[0].price == 142.0
+    assert options[0].stops == 0
+
+
+@pytest.mark.asyncio
+async def test_search_flights_filters_preferred_time():
+    adapter = KiwiMCPFlightServiceAdapter(url="http://test")
+
+    async def fake_search(arguments):
+        return [
+            _kiwi_item(dep_local="2026-09-10T07:00:00", arr_local="2026-09-10T10:15:00",
+                       price=165, layovers=[]),
+            _kiwi_item(dep_local="2026-09-10T21:00:00", arr_local="2026-09-11T00:15:00",
+                       price=120, layovers=[]),
+        ]
+
+    adapter._search = fake_search
+    options = await adapter.search_flights("BER", "ATH", "2026-09-10", preferred_time="6-9")
+    assert [o.departure_time for o in options] == ["2026-09-10T07:00:00"]
+
+
+@pytest.mark.asyncio
+async def test_search_flights_invalid_date_degrades():
+    adapter = KiwiMCPFlightServiceAdapter(url="http://test")
+
+    async def boom(arguments):  # pragma: no cover - must not be reached
+        raise AssertionError("invalid date must short-circuit before any network call")
+
+    adapter._search = boom
+    assert await adapter.search_flights("BER", "ATH", "not-a-date") == []
+
+
+@pytest.mark.asyncio
+async def test_search_flights_empty_result_degrades():
+    adapter = KiwiMCPFlightServiceAdapter(url="http://test")
+
+    async def fake_search(arguments):
+        return []
+
+    adapter._search = fake_search
+    assert await adapter.search_flights("BER", "ATH", "2026-09-10") == []
+
+
+# --- Kiwi adapter: find_cheapest_dates (concurrent flex-window sampling) -------
+
+@pytest.mark.asyncio
+async def test_find_cheapest_dates_samples_and_aggregates(monkeypatch):
+    monkeypatch.setattr(mcp_flight_service, "_DATE_SAMPLES", 5)
+    adapter = KiwiMCPFlightServiceAdapter(url="http://test")
+    calls = []
+
+    async def fake_search(arguments):
+        calls.append(arguments)
+        d = datetime.strptime(arguments["departureDate"], "%d/%m/%Y").date()
+        # One option on the sample's own date, plus a shared off-sample date whose
+        # price drops on each call so cheapest-per-date dedupe is observable.
+        return [
+            {"departure": {"local": d.isoformat() + "T08:00:00.000"},
+             "price": 100 + len(calls) * 10, "currency": "USD", "layovers": []},
+            {"departure": {"local": "2026-09-20T09:00:00.000"},
+             "price": 300 - len(calls) * 10, "currency": "USD", "layovers": []},
+        ]
+
+    adapter._search = fake_search
+    options = await adapter.find_cheapest_dates(
+        "BER", "ATH", date_from="2026-09-01", date_to="2026-09-30",
+        duration_days=7, currency="USD",
+    )
+
+    # Month sampled in ~7-day steps, bounded by _DATE_SAMPLES.
+    assert len(calls) == 5
+    # Round-trip args carry a flex-ranged return date.
+    assert calls[0]["departureDateFlexRange"] == 3
+    assert calls[0]["returnDateFlexRange"] == 3
+    assert "returnDate" in calls[0]
+
+    assert all(isinstance(o, FlightDateOption) for o in options)
+    # Cheapest-first ranking.
+    assert [o.price for o in options] == sorted(o.price for o in options)
+    # The shared date collapses to its minimum across the 5 calls (300 - 5*10).
+    shared = next(o for o in options if o.departure_date == "2026-09-20")
+    assert shared.price == 250.0
+    # Round-trip → a return date is derived.
+    assert shared.return_date is not None
+    assert shared.currency == "USD"
+
+
+@pytest.mark.asyncio
+async def test_find_cheapest_dates_filters_out_of_range_dates():
+    adapter = KiwiMCPFlightServiceAdapter(url="http://test")
+
+    async def fake_search(arguments):
+        # Flex can return dates just outside the window; those must be dropped.
+        return [
+            {"departure": {"local": "2026-08-30T08:00:00.000"}, "price": 50, "layovers": []},
+            {"departure": {"local": "2026-09-05T08:00:00.000"}, "price": 90, "layovers": []},
+        ]
+
+    adapter._search = fake_search
+    options = await adapter.find_cheapest_dates(
+        "BER", "ATH", date_from="2026-09-01", date_to="2026-09-30", currency="EUR"
+    )
+    dates = {o.departure_date for o in options}
+    assert "2026-08-30" not in dates
+    assert "2026-09-05" in dates
 
 
 # --- Agent tools --------------------------------------------------------------
@@ -271,7 +267,7 @@ class _StubFlightService(FlightServicePort):
                 arrival_time=f"{departure_date}T12:00:00",
                 duration_minutes=180,
                 stops=0,
-                airline="TestAir",
+                airline="Direct",
                 price=99.0,
                 currency=kwargs.get("currency", "EUR"),
             )
@@ -320,6 +316,8 @@ async def test_search_flights_tool_applies_direct_flights_preference():
     )
     out = await search_flights(_ctx(deps), "BER", "ATH", "2026-09-10")
     assert out["options"][0]["price"] == 99.0
+    # booking_link is surfaced in the tool payload for the frontend card.
+    assert "booking_link" in out["options"][0]
     _, _, _, _, kwargs = stub.calls[0]
     assert kwargs["max_stops"] == 0  # direct_flights_only forced max_stops=0
 

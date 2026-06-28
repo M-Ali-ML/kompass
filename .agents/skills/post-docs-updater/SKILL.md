@@ -1,6 +1,6 @@
 ---
 name: post-docs-updater
-description: Update post-building documentation in the docs/ directory (such as architecture, design, and product files). Run this skill whenever you make structural, architectural, database, or UI/styling changes, or finish a feature to keep the living documentation in sync with the codebase.
+description: Update post-building documentation in the docs/ directory (such as architecture, design, and product files, plus the published index.html flow visualization). Run this skill whenever you make structural, architectural, database, or UI/styling changes, or finish a feature to keep the living documentation in sync with the codebase.
 ---
 
 # Skill: Maintaining Post-Building Documentation (Post-Docs)
@@ -16,6 +16,8 @@ You **MUST** invoke this skill and update the relevant documents in `docs/` when
 2. **UI/Design Changes:** Modifying global styles (`globals.css`), component styling, theme colors, typography, layout definitions, or interactive animation patterns.
 3. **Feature Implementation:** Completing any feature or sub-feature described in the PRD or user stories.
 4. **Dependency/Tooling Updates:** Adding, upgrading, or removing backend packages (`pyproject.toml`) or frontend packages (`package.json`).
+
+After updating the Markdown docs, **always check whether the published flow visualization ([docs/index.html](../../../docs/index.html), sourced from [artifacts/kompass-flow.html](../../../artifacts/kompass-flow.html)) also needs to be updated** to reflect the same change (see its entry below).
 
 ---
 
@@ -38,6 +40,9 @@ Determine which files in `docs/` correspond to your changes:
     * `[x]` Completed (when fully functional and verified)
     * `[/]` In Progress (when currently being worked on)
     * `[ ]` Not Started (backlog)
+* **[index.html](../../../docs/index.html)** — the public, interactive flow visualization served via **GitHub Pages** (`https://m-ali-ml.github.io/kompass/`). Its editable source is [artifacts/kompass-flow.html](../../../artifacts/kompass-flow.html); `docs/index.html` is a published copy of it.
+  * *Always check whether this needs updating* whenever the changes above touch anything the visualization depicts: the architecture/layers, the request flow (the step-by-step lifecycle), the agent tools (the toolbelt), data sources (MCP servers, grounding, persistence), the generative-UI tool cards, the hexagonal ports/adapters, or the tech stack.
+  * *How to update:* edit the source [artifacts/kompass-flow.html](../../../artifacts/kompass-flow.html) first, then sync the published copy with `cp artifacts/kompass-flow.html docs/index.html` so the two stay identical. Keep its content consistent with `architecture.md`, `product.md`, and `design.md`.
 
 ### 3. Read Existing Post-Docs
 Always read the current content of the target post-doc file using `view_file` to ensure you understand its current structure and do not overwrite or duplicate sections.
