@@ -72,8 +72,11 @@ export function useTripTools() {
     description:
       "Ask the traveler ONE focused clarifying question when required trip info is " +
       "missing or ambiguous. Provide 2-4 concrete `options`; the traveler may also " +
-      "type a free-text answer. Set `allow_multiple` when several options can be " +
-      "chosen. Returns the traveler's answer as text.",
+      "type a free-text answer. Prefer `allow_multiple=true` for preference/interest " +
+      "questions (vibe, interests, activities, transport modes) so the traveler can pick " +
+      "several (no need for a catch-all 'All of the above' option); use single-select only " +
+      "for mutually-exclusive facts (origin, party size, budget, dates, trip length). " +
+      "Returns the traveler's answer as text (comma-joined when several are chosen).",
     parameters: clarifyParameters,
     render: (props) => <ClarifyCard {...props} />,
   });

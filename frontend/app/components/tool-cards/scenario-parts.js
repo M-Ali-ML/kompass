@@ -100,7 +100,7 @@ export function DayRow({ day, defaultOpen, open: openProp, onToggle }) {
             <ol className="flex flex-col gap-3">
               {schedule.map((item, i) => (
                 <li key={i} className="flex gap-3">
-                  <span className="shrink-0 mt-0.5 w-20 whitespace-nowrap text-[11px] font-bold uppercase tracking-wide text-secondary">
+                  <span className="shrink-0 mt-0.5 w-24 break-words text-[11px] font-bold uppercase tracking-wide leading-snug text-secondary">
                     {item.period}
                   </span>
                   <div className="flex-1 min-w-0">

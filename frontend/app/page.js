@@ -13,6 +13,10 @@ import { TripPanel } from "./components/map/trip-panel";
 import { useActiveTrip } from "./hooks/use-active-trip";
 import { useTripTools } from "./hooks/use-trip-tools";
 import { useMediaQuery } from "./hooks/use-media-query";
+import {
+  PLACEHOLDER_PROMPTS,
+  useTypewriterPlaceholder,
+} from "./hooks/use-typewriter-placeholder";
 
 // Whether the active route actually has something to draw on the map. The map
 // panel stays hidden until there's real data (a plotted route or a hovered
@@ -144,6 +148,10 @@ function Workspace({ activeThreadId, reloadKey, handleNewTrip, handleSelectTrip 
   // Register the generative-UI renderers for each agent tool.
   useTripTools();
 
+  // Animated chat-input placeholder that types example prompts in and out, to
+  // suggest things the user could ask for on a fresh trip.
+  const placeholder = useTypewriterPlaceholder(PLACEHOLDER_PROMPTS);
+
   const sidebar = (
     <TripSidebar
       activeThreadId={activeThreadId}
@@ -177,8 +185,7 @@ function Workspace({ activeThreadId, reloadKey, handleNewTrip, handleSelectTrip 
         onError={handleChatError}
         chatView={CHAT_VIEW_SLOTS}
         labels={{
-          title: "Kompass Travel Assistant",
-          placeholder: "Where do you want to go?",
+          chatInputPlaceholder: placeholder,
         }}
       />
     </div>
