@@ -40,7 +40,7 @@ RESEARCH_INSTRUCTIONS = _prompt_service.get_prompt("research_prompt")
 # Single-capability agent: native web search only, plain-text output, no
 # function tools and no structured output (see module docstring).
 research_agent = Agent(
-    settings.llm_model,
+    settings.research_model,
     output_type=str,
     capabilities=[WebSearch()],
     instructions=RESEARCH_INSTRUCTIONS,

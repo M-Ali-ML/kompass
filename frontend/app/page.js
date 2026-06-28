@@ -8,11 +8,20 @@ import { AppHeader } from "./components/app-header";
 import { TripSidebar } from "./components/trip-sidebar";
 import { ResizeHandle } from "./components/resize-handle";
 import { ChatStatus } from "./components/chat-status";
-import { MapStateProvider } from "./components/map/map-context";
+import { MapStateProvider, useMapState } from "./components/map/map-context";
 import { TripPanel } from "./components/map/trip-panel";
 import { useActiveTrip } from "./hooks/use-active-trip";
 import { useTripTools } from "./hooks/use-trip-tools";
 import { useMediaQuery } from "./hooks/use-media-query";
+
+// Whether the active route actually has something to draw on the map. The map
+// panel stays hidden until there's real data (a plotted route or a hovered
+// stay), so a fresh trip starts as a focused, full-width chat.
+function routeHasData(route) {
+  return Boolean(
+    route && ((route.legs || []).length > 0 || (route.accommodations || []).length > 0)
+  );
+}
 
 // Custom slots for the chat's message view:
 // - `reasoningMessage`: candy styling for the agent's built-in reasoning
@@ -32,7 +41,28 @@ const CHAT_VIEW_SLOTS = {
 };
 
 export default function Home() {
-  const { activeThreadId, reloadKey, handleNewTrip, handleSelectTrip } = useActiveTrip();
+  const trip = useActiveTrip();
+
+  return (
+    <MapStateProvider>
+      <Workspace {...trip} />
+    </MapStateProvider>
+  );
+}
+
+function Workspace({ activeThreadId, reloadKey, handleNewTrip, handleSelectTrip }) {
+  const { activeRoute, hoveredStay, setActiveRoute } = useMapState();
+
+  // Show the map panel only when there's data to plot. A new/empty trip (or one
+  // still gathering info) keeps the map hidden so the chat gets the full width.
+  const showMap = routeHasData(activeRoute) || Boolean(hoveredStay);
+
+  // Reset the plotted route whenever the active trip changes (new trip or
+  // switching trips) so a stale route never lingers on the map. The relevant
+  // scenario card re-plots its route once a resumed trip's messages render.
+  useEffect(() => {
+    setActiveRoute(null);
+  }, [activeThreadId, setActiveRoute]);
 
   // Surface run-level failures (e.g. an MCP server / model error mid-run) as a
   // dismissible toast over the chat, then auto-clear. Tool-level "no live data"
@@ -54,6 +84,13 @@ export default function Home() {
   // react-resizable-panels doesn't reserve space for them.
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // The desktop trips sidebar starts collapsed so the chat opens front-and-center;
+  // the header menu button toggles it. On mobile the same button opens the drawer.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const handleMenuClick = useCallback(() => {
+    if (isDesktop) setSidebarCollapsed((c) => !c);
+    else setDrawerOpen(true);
+  }, [isDesktop]);
 
   // The drawer is only rendered while `!isDesktop`, so growing into the desktop
   // layout hides it automatically — no effect needed to force it closed.
@@ -75,8 +112,11 @@ export default function Home() {
   const groupRef = useRef(null);
   const storageKey = "kompass-layout-map:v2";
 
+  // Only restore (and persist) the saved layout while the map pane is mounted,
+  // since the stored sizes describe the three-pane split. When the map is
+  // hidden the two remaining panes fall back to their default sizing.
   useEffect(() => {
-    if (!isDesktop) return;
+    if (!isDesktop || !showMap || sidebarCollapsed) return;
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (raw && groupRef.current?.setLayout) {
@@ -85,17 +125,20 @@ export default function Home() {
     } catch {
       // Ignore malformed/missing saved layouts — defaults apply.
     }
-  }, [storageKey, isDesktop]);
+  }, [storageKey, isDesktop, showMap, sidebarCollapsed]);
 
   const handleLayoutChanged = useCallback(
     (layout) => {
+      // Only persist the full three-pane layout; partial layouts (a collapsed
+      // sidebar or hidden map) would have a different shape on restore.
+      if (!showMap || sidebarCollapsed) return;
       try {
         window.localStorage.setItem(storageKey, JSON.stringify(layout));
       } catch {
         // Persistence is best-effort.
       }
     },
-    [storageKey]
+    [storageKey, showMap, sidebarCollapsed]
   );
 
   // Register the generative-UI renderers for each agent tool.
@@ -142,9 +185,9 @@ export default function Home() {
   );
 
   return (
-    <MapStateProvider>
+    <>
       <div className="flex flex-col h-screen overflow-hidden bg-background">
-        <AppHeader showMenu={!isDesktop} onMenuClick={() => setDrawerOpen(true)} />
+        <AppHeader showMenu onMenuClick={handleMenuClick} />
 
         {isDesktop ? (
           /* Three resizable panes (history | chat | map) with draggable
@@ -156,22 +199,31 @@ export default function Home() {
             onLayoutChanged={handleLayoutChanged}
             className="flex-1 overflow-hidden"
           >
-            <Panel id="sidebar" defaultSize="18%" minSize="12%" maxSize="32%">
-              {sidebar}
-            </Panel>
-
-            <ResizeHandle />
+            {/* Trips sidebar — collapsed by default; the header menu toggles it. */}
+            {!sidebarCollapsed && (
+              <>
+                <Panel id="sidebar" defaultSize="18%" minSize="12%" maxSize="32%">
+                  {sidebar}
+                </Panel>
+                <ResizeHandle />
+              </>
+            )}
 
             <Panel id="chat" minSize="25%" className="min-w-0">
               {chatPanel}
             </Panel>
 
-            <ResizeHandle />
-
-            {/* Right split-panel: itinerary summary + interactive trip map. */}
-            <Panel id="map" defaultSize="34%" minSize="20%" maxSize="55%">
-              <TripPanel />
-            </Panel>
+            {/* Right split-panel: itinerary summary + interactive trip map.
+                Mounted only once there's a route/stay to show, so a fresh trip
+                opens as a focused, full-width chat. */}
+            {showMap && (
+              <>
+                <ResizeHandle />
+                <Panel id="map" defaultSize="34%" minSize="20%" maxSize="55%">
+                  <TripPanel />
+                </Panel>
+              </>
+            )}
           </Group>
         ) : (
           /* Mobile/tablet: full-width chat; trips live in an off-canvas drawer. */
@@ -201,6 +253,6 @@ export default function Home() {
           </div>
         )}
       </div>
-    </MapStateProvider>
+    </>
   );
 }

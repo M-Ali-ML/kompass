@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     google_api_key: SecretStr = Field(alias="GOOGLE_API_KEY")
     llm_model: str = Field("google:gemini-2.5-pro", alias="LLM_MODEL")
 
+    # Model for the grounded web-research sub-agent (app/agent/research_agent.py).
+    # These are quick, parallel, plain-text grounded lookups, so a cheap/fast tier
+    # is a good fit and keeps it decoupled from the main planning model.
+    research_model: str = Field("google:gemini-2.5-flash", alias="RESEARCH_MODEL")
+
     # Trip "vibe" background image generation. A cheap Gemini image model paints
     # a destination/atmosphere image per trip (shown in the trip sidebar + the
     # scenario detail modal). `image_scene_model` is a cheap text model used to
