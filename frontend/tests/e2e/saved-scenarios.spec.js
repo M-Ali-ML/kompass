@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { BACKEND_URL } = require('../e2e.constants');
+const { openTrips } = require('./helpers');
 
 // Phase 10 — saved scenarios UI. Seeds one saved scenario via the REST API
 // (no LLM), then drives the Saved tab → detail modal → remove flow in the UI.
@@ -14,6 +15,13 @@ const SAVED = {
 
 test.describe('Saved scenarios', () => {
   test('save via API → appears in Saved tab → open detail → remove', async ({ page, request }) => {
+    // Start from a clean slate so a CI retry (which re-creates the scenario)
+    // never leaves duplicate rows that break the strict-mode locator below.
+    const existing = await (await request.get(`${BACKEND_URL}/api/saved-scenarios`)).json();
+    for (const s of existing.saved) {
+      await request.delete(`${BACKEND_URL}/api/saved-scenarios/${s.id}`);
+    }
+
     const created = await request.post(`${BACKEND_URL}/api/saved-scenarios`, {
       data: {
         destination: SAVED.destination,
@@ -53,7 +61,8 @@ test.describe('Saved scenarios', () => {
 
     await page.goto('/');
 
-    // Switch to the Saved tab in the sidebar.
+    // The trips sidebar is collapsed by default; reveal it, then switch tabs.
+    await openTrips(page);
     await page.locator('aside').getByRole('button', { name: 'Saved', exact: true }).click();
 
     const savedRow = page.locator('aside').getByText(SAVED.destination);

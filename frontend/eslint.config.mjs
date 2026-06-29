@@ -9,6 +9,11 @@ const eslintConfig = defineConfig([
     ".next/**",
     // Isolated Next build dir used by the Playwright E2E webServer.
     ".next-e2e/**",
+    // Isolated Next build dir used by `npm run dev`.
+    ".next-dev/**",
+    // Playwright output (HTML report + trace bundles) and test artifacts.
+    "playwright-report/**",
+    "test-results/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

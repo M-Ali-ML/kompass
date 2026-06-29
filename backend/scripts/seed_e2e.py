@@ -19,6 +19,7 @@ from app.adapters.sqlite_user_profile_repository import SqliteUserProfileReposit
 from app.domain import UserPreferences
 from app.domain.models import Message, Trip
 from app.domain.models.profile import UserProfile
+from app.domain.models.saved_scenario import SavedScenario
 
 # Fixture data shared with the E2E specs. Keep titles and assistant lines
 # unique and stable — the tests assert on these exact strings.
@@ -37,6 +38,9 @@ async def _reset() -> None:
         await session.execute(delete(Message))
         await session.execute(delete(Trip))
         await session.execute(delete(UserProfile))
+        # Saved scenarios aren't part of the fixture, but clearing them keeps the
+        # Saved-tab E2E spec deterministic across reruns (it creates its own).
+        await session.execute(delete(SavedScenario))
         await session.commit()
 
 

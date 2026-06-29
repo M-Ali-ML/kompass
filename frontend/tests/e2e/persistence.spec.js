@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { FIXTURE } = require('../e2e.constants');
+const { openTrips } = require('./helpers');
 
 // These tests exercise Phase 3 (persistence & session memory) against a seeded
 // database, with no LLM involvement. They run in declaration order (workers: 1)
@@ -8,6 +9,8 @@ const { FIXTURE } = require('../e2e.constants');
 test.describe('Trips persistence & resume', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
+    // The trips sidebar is collapsed by default; reveal it before asserting.
+    await openTrips(page);
     // Wait for the sidebar to finish loading the seeded trips.
     await expect(
       page.locator('aside').getByText(FIXTURE.greece.title)

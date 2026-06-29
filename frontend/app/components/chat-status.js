@@ -42,6 +42,9 @@ export function ChatStatus() {
   useEffect(() => {
     if (!agent?.subscribe) return undefined;
 
+    // Sync the initial phase when the agent is already mid-run on mount; the
+    // subscription below drives every subsequent transition.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (agent.isRunning) setPhase("thinking");
 
     const startTurn = () => {
@@ -78,10 +81,14 @@ export function ChatStatus() {
 
   if (phase !== "thinking" && phase !== "tool") return null;
 
+  // `usedToolRef` is a non-rendering signal: every flip is paired with a
+  // setPhase(...) that re-renders, so reading it here to pick the copy is safe.
+  // eslint-disable-next-line react-hooks/refs
+  const usedTool = usedToolRef.current;
   const label =
     phase === "tool"
       ? TOOL_LABELS[toolName] || "Working on it…"
-      : usedToolRef.current
+      : usedTool
         ? THINKING_AFTER_TOOLS
         : THINKING_BEFORE_TOOLS;
 
