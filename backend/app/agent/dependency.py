@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass, field
 
 from app.adapters.file_prompt_service import FilePromptService
+from app.adapters.grounded_research_service import GroundedResearchService
 from app.adapters.mcp_accommodation_service import accommodation_service
 from app.adapters.mcp_flight_service import flight_service
 from app.adapters.sqlite_trip_repository import SqliteTripRepository
@@ -11,6 +12,7 @@ from app.domain.user_preferences import UserPreferences
 from app.ports.accommodation_service import AccommodationServicePort
 from app.ports.flight_service import FlightServicePort
 from app.ports.prompt_service import PromptServicePort
+from app.ports.research_service import ResearchServicePort
 from app.ports.trip_repository import TripRepository
 from app.ports.user_profile_repository import UserProfileRepository
 
@@ -24,6 +26,7 @@ class AgentDependencies:
     profile_repository: UserProfileRepository | None = None
     flight_service: FlightServicePort | None = None
     accommodation_service: AccommodationServicePort | None = None
+    research_service: ResearchServicePort | None = None
     trip_id: str | None = None
     # Bounds how many times generate_scenarios may reject for an incomplete or
     # padded day-by-day plan within a single run, so enforcement can't loop forever.
@@ -50,5 +53,6 @@ def get_agent_dependencies(
         profile_repository=SqliteUserProfileRepository(SessionLocal),
         flight_service=flight_service,
         accommodation_service=accommodation_service,
+        research_service=GroundedResearchService(),
         trip_id=trip_id,
     )

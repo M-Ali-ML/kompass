@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 from pydantic_ai import RunContext
 
-import app.agent.agent as agent_mod
 import app.agent.research_agent as research_mod
 from app.agent.agent import _month_to_range, find_cheapest_dates, search_flights, search_web
 from app.agent.dependency import AgentDependencies
@@ -333,17 +332,20 @@ async def test_flight_tools_handle_missing_service():
 # --- Grounded web-search tool -------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_search_web_tool_delegates_with_currency(monkeypatch):
+async def test_search_web_tool_delegates_with_currency():
+    from app.ports.research_service import ResearchServicePort
+
     captured = {}
 
-    async def fake_run_research(query):
-        captured["query"] = query
-        return "BER→ATH ~120–160 USD, Aegean operates direct flights."
+    class FakeResearchService(ResearchServicePort):
+        async def research(self, query: str) -> str:
+            captured["query"] = query
+            return "BER→ATH ~120–160 USD, Aegean operates direct flights."
 
-    monkeypatch.setattr(agent_mod, "run_research", fake_run_research)
     deps = AgentDependencies(
         prompt_service=MagicMock(spec=PromptServicePort),
         user_preferences=UserPreferences(currency="USD"),
+        research_service=FakeResearchService(),
     )
     out = await search_web(_ctx(deps), "cheapest flights BER to ATH in September")
     assert "USD" in captured["query"]  # preferred currency threaded into the query

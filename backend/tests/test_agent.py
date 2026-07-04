@@ -184,22 +184,23 @@ async def test_generate_scenarios_backfills_travelers_and_titles(agent_deps):
 
 
 @pytest.mark.asyncio
-async def test_search_ground_transport_builds_query_and_threads_currency(agent_deps, monkeypatch):
-    from app.agent import agent as agent_module
+async def test_search_ground_transport_builds_query_and_threads_currency(agent_deps):
     from app.agent.agent import search_ground_transport
+    from app.ports.research_service import ResearchServicePort
     from pydantic_ai import RunContext
     from app.domain import UserPreferences
 
     agent_deps.user_preferences = UserPreferences(currency="GBP")
-    ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
 
     captured = {}
 
-    async def fake_run_research(query: str) -> str:
-        captured["query"] = query
-        return "Blue Star Ferries departs Piraeus ~07:25, arrives Milos ~14:00, ~45 GBP."
+    class FakeResearchService(ResearchServicePort):
+        async def research(self, query: str) -> str:
+            captured["query"] = query
+            return "Blue Star Ferries departs Piraeus ~07:25, arrives Milos ~14:00, ~45 GBP."
 
-    monkeypatch.setattr(agent_module, "run_research", fake_run_research)
+    agent_deps.research_service = FakeResearchService()
+    ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
 
     result = await search_ground_transport(
         ctx, "Piraeus", "Milos", "2026-09-12", modes="ferry"

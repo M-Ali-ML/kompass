@@ -6,7 +6,6 @@ from pydantic_ai import Agent, RunContext
 from app.config import settings
 from app.agent.dependency import AgentDependencies
 from app.agent.image_agent import spawn_trip_background
-from app.agent.research_agent import run_research
 from app.domain import Scenario, UserPreferences
 
 logger = logging.getLogger("kompass.agent")
@@ -288,10 +287,12 @@ async def search_web(ctx: RunContext[AgentDependencies], query: str) -> str:
         query: A focused natural-language search query (include dates, origin/
             destination cities, and any constraints).
     """
+    if ctx.deps.research_service is None:
+        return "(Live web search is unavailable.)"
     currency = ctx.deps.user_preferences.currency
     full_query = f"{query}\n\n(Report any prices in {currency}.)"
     logger.info(f"search_web query: {full_query!r}")
-    return await run_research(full_query)
+    return await ctx.deps.research_service.research(full_query)
 
 
 @kompass_agent.tool
@@ -321,6 +322,8 @@ async def search_ground_transport(
         date: Travel date in 'YYYY-MM-DD' format.
         modes: Optional comma-separated modes to focus on (e.g. 'ferry', 'train,bus').
     """
+    if ctx.deps.research_service is None:
+        return "(Ground-transport research is unavailable.)"
     currency = ctx.deps.user_preferences.currency
     mode_clause = f" by {modes}" if modes else " by train, bus, or ferry"
     query = (
@@ -331,7 +334,7 @@ async def search_ground_transport(
         f"(Report any prices in {currency}.)"
     )
     logger.info(f"search_ground_transport query: {query!r}")
-    return await run_research(query)
+    return await ctx.deps.research_service.research(query)
 
 
 @kompass_agent.tool

@@ -1,22 +1,10 @@
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def _stub_grounded_research(monkeypatch):
-    """Prevent the grounded web-search sub-agent from making real network calls.
-
-    `TestModel` auto-invokes every registered tool, including `search_web`,
-    which would otherwise delegate to the live Gemini grounding sub-agent.
-    Individual tests that exercise `search_web` directly override this with
-    their own stub.
-    """
-
-    async def _fast_research(query: str) -> str:
-        return "STUBBED_RESEARCH"
-
-    import app.agent.agent as agent_mod
-
-    monkeypatch.setattr(agent_mod, "run_research", _fast_research, raising=False)
+# Grounded web research is injected via AgentDependencies.research_service
+# (ResearchServicePort). Tests build deps without it (None), so `search_web` /
+# `search_ground_transport` degrade to a soft "unavailable" message and never
+# hit the network — even when `TestModel` auto-invokes every registered tool.
+# Tests that exercise research behavior inject their own fake service.
 
 
 @pytest.fixture(autouse=True)
