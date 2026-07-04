@@ -557,7 +557,7 @@ run   = agent.<span class="m">run_ag_ui</span>(deps=...)`,
    narr:"The PydanticAI kompass_agent starts with output_type = str | Scenario and thinking enabled. AgentDependencies injects the prompt service, repositories, and the flight/accommodation services it can reach for.",
    code:`<span class="c"># agent/agent.py</span>
 kompass_agent = <span class="m">Agent</span>(
-  model=<span class="s">"google:gemini-2.5-pro"</span>,
+  model=<span class="s">"google:gemini-2.5-flash"</span>,
   output_type=<span class="k">Union</span>[str, Scenario],
   deps_type=AgentDependencies,
   model_settings={<span class="s">"thinking"</span>: <span class="k">True</span>},

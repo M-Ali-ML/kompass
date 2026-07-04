@@ -95,6 +95,26 @@ HOTEL_CATALOG: dict[str, list[HotelFixture]] = {
         HotelFixture("Syntagma Suites", "vacation rental", 132.0, 4.5, 322, 0, ("Kitchen", "Free Wi-Fi")),
         HotelFixture("Athenaeum Palace", "hotel", 228.0, 4.7, 1876, 5, ("Pool", "Spa", "Breakfast")),
     ],
+    "milos": [
+        HotelFixture("Milos Sea Rooms", "guest house", 72.0, 4.1, 289, 2, ("Free Wi-Fi", "Sea view")),
+        HotelFixture("Adamas Bay Hotel", "hotel", 118.0, 4.4, 512, 3, ("Free Wi-Fi", "Breakfast")),
+        HotelFixture("Sarakiniko Suites", "vacation rental", 176.0, 4.7, 341, 4, ("Pool", "Kitchen", "Sea view")),
+    ],
+    "paros": [
+        HotelFixture("Paros Town Studios", "guest house", 64.0, 4.0, 377, 2, ("Free Wi-Fi",)),
+        HotelFixture("Naoussa Breeze Hotel", "hotel", 109.0, 4.5, 803, 3, ("Free Wi-Fi", "Breakfast", "Pool")),
+        HotelFixture("Aegean Blue Villas", "vacation rental", 168.0, 4.8, 256, 4, ("Pool", "Kitchen", "Sea view")),
+    ],
+    "naxos": [
+        HotelFixture("Naxos Chora Rooms", "guest house", 58.0, 4.0, 445, 2, ("Free Wi-Fi",)),
+        HotelFixture("Plaka Beach Hotel", "hotel", 102.0, 4.5, 690, 3, ("Free Wi-Fi", "Breakfast", "Beachfront")),
+        HotelFixture("Portara Sunset Suites", "vacation rental", 159.0, 4.7, 288, 4, ("Pool", "Kitchen", "Sea view")),
+    ],
+    "santorini": [
+        HotelFixture("Fira Budget Rooms", "guest house", 96.0, 3.9, 512, 2, ("Free Wi-Fi",)),
+        HotelFixture("Caldera View Hotel", "hotel", 189.0, 4.6, 1344, 4, ("Free Wi-Fi", "Breakfast", "Caldera view")),
+        HotelFixture("Oia Cliff Suites", "vacation rental", 285.0, 4.9, 921, 5, ("Pool", "Caldera view", "Hot tub")),
+    ],
 }
 
 # Generic fallback hotels for destinations not in the catalog.
@@ -112,10 +132,12 @@ GENERIC_HOTELS: list[HotelFixture] = [
 RESEARCH_RESPONSES: list[tuple[tuple[str, ...], str]] = [
     (
         ("ferry",),
-        "Blue Star Ferries and SeaJets operate the route. Conventional ferry departs "
-        "Piraeus around 07:25 arriving approximately 11:55 (4.5 h), roughly 42-58 EUR "
-        "per person one way. High-speed departs around 07:00 arriving 10:15 (3.2 h), "
-        "roughly 75-90 EUR. Ferries run daily in season; book ahead in July-August.",
+        "Blue Star Ferries and SeaJets operate this route. A conventional ferry "
+        "departs mid-morning around 08:30 and takes approximately 3-4.5 h, roughly "
+        "40-60 EUR per person one way. A high-speed catamaran departs around 07:15 "
+        "and takes approximately 2-3 h, roughly 70-95 EUR per person. Both run daily "
+        "in season (May-Sep); book ahead in July-August. No overnight sailings on "
+        "this route.",
     ),
     (
         ("train", "bus", "rail"),

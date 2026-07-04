@@ -91,7 +91,7 @@ Located in `backend/app/adapters/`:
 ## 3. PydanticAI Agent Layer
 The agent framework is managed via PydanticAI.
 
-* **Agent Definition:** [agent.py](../backend/app/agent/agent.py) instantiates `kompass_agent` with `output_type=Union[str, Scenario]`, `deps_type=AgentDependencies`, and `model_settings={'thinking': True}`. Model selected from `settings.llm_model` (default `google:gemini-2.5-pro`).
+* **Agent Definition:** [agent.py](../backend/app/agent/agent.py) instantiates `kompass_agent` with `output_type=Union[str, Scenario]`, `deps_type=AgentDependencies`, and `model_settings={'thinking': True}`. Model selected from `settings.llm_model` (default `google:gemini-2.5-flash`).
 * **Agent Tools:**
   * `gather_preferences` — extracts/registers `UserPreferences` (layered via `merged_with`) and persists them to the global profile.
   * `find_cheapest_dates` / `search_flights` — **live structured flights** via the remote Kiwi.com MCP, currency-aware and honoring `direct_flights_only` (applied client-side). `find_cheapest_dates` samples a month with concurrent ±3-day flex searches. Fall back to `search_web` when no options are returned.

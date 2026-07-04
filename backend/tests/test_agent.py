@@ -247,6 +247,84 @@ async def test_generate_scenarios_normalizes_totals_and_payload(agent_deps):
 
 
 @pytest.mark.asyncio
+async def test_generate_scenarios_normalizes_subtotals_from_line_items(agent_deps):
+    from app.agent.agent import generate_scenarios
+    from pydantic_ai import RunContext
+
+    # Skip the day-plan guard so we isolate cost normalization.
+    agent_deps.day_validation_retries = 2
+    ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
+
+    # Itemized legs (100 + 250 = 350) and stays (300 + 180 = 480) that DON'T
+    # match the model's stated subtotals — arithmetic must never be trusted from
+    # the model. The line items (tool-sourced) are the source of truth.
+    scenario = Scenario(
+        label="Island hop",
+        comparison_label="Island hop",
+        start_date="2026-09-04",
+        end_date="2026-09-07",
+        itinerary={
+            "legs": [
+                {
+                    "mode": "flight",
+                    "origin": "BER",
+                    "destination": "ATH",
+                    "departure_time": "2026-09-04T09:00:00+02:00",
+                    "arrival_time": "2026-09-04T12:00:00+03:00",
+                    "carrier": "Aegean",
+                    "cost": 100.0,
+                },
+                {
+                    "mode": "ferry",
+                    "origin": "Piraeus",
+                    "destination": "Milos",
+                    "departure_time": "2026-09-04T15:00:00+03:00",
+                    "arrival_time": "2026-09-04T18:30:00+03:00",
+                    "carrier": "Blue Star Ferries",
+                    "cost": 250.0,
+                },
+            ],
+            "accommodations": [
+                {
+                    "name": "Athens Central",
+                    "location": "Athens",
+                    "check_in": "2026-09-04T15:00:00+03:00",
+                    "check_out": "2026-09-05T11:00:00+03:00",
+                    "cost": 300.0,
+                },
+                {
+                    "name": "Milos Sea Rooms",
+                    "location": "Milos",
+                    "check_in": "2026-09-05T15:00:00+03:00",
+                    "check_out": "2026-09-07T11:00:00+03:00",
+                    "cost": 180.0,
+                },
+            ],
+            "days": [],
+        },
+        # Deliberately wrong subtotals; the tool must overwrite them.
+        cost_breakdown={"transportation": 600.0, "accommodation": 959.0, "grand_total": 0.0},
+        stress_score=3,
+        stress_factors={
+            "layover_count": 1,
+            "overnight_travel": False,
+            "tight_connection": False,
+            "total_travel_hours": 8.0,
+        },
+        highlights=["Ferry hop"],
+        reasoning_summary="Island hopping.",
+    )
+
+    payload = await generate_scenarios(ctx, "Milos", [scenario])
+
+    cb = payload["scenarios"][0]["cost_breakdown"]
+    # Subtotals are re-derived from the itemized line items, not the model's math.
+    assert cb["transportation"] == 350.0
+    assert cb["accommodation"] == 480.0
+    assert cb["grand_total"] == 830.0
+
+
+@pytest.mark.asyncio
 async def test_generate_scenarios_renders_single_scenario(agent_deps):
     from app.agent.agent import generate_scenarios
     from pydantic_ai import RunContext

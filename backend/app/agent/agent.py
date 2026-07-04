@@ -438,9 +438,19 @@ async def generate_scenarios(
     currency = ctx.deps.user_preferences.currency
     party = ctx.deps.party_size
     for s in scenarios:
-        # Keep the displayed math self-consistent: the grand total is always the
-        # sum of its parts, regardless of what the model put in the field.
+        # Deterministic cost math — never delegate arithmetic to the model. The
+        # itemized line items (leg + accommodation costs, sourced from the data
+        # tools) are the source of truth: re-derive each subtotal by summing
+        # them, then the grand total from the subtotals. Flash in particular
+        # reports subtotals that don't match its own line items on multi-leg
+        # trips (e.g. six ferry/flight legs summing to €1252 reported as €600).
+        # Only override a subtotal when the model actually itemized that side —
+        # an itemless scenario keeps whatever subtotal it stated.
         cb = s.cost_breakdown
+        if s.itinerary.legs:
+            cb.transportation = round(sum(leg.cost for leg in s.itinerary.legs), 2)
+        if s.itinerary.accommodations:
+            cb.accommodation = round(sum(a.cost for a in s.itinerary.accommodations), 2)
         cb.grand_total = round(cb.transportation + cb.accommodation, 2)
         # Backfill the party size when the model left `travelers` at the default
         # (it often nests `travelers` on the itinerary, where it's dropped). This

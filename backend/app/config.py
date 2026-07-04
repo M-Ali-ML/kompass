@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Secret fields use SecretStr so they auto-mask in any repr / model_dump
     # (e.g. the DEBUG settings dump). Read the raw value with .get_secret_value().
     google_api_key: SecretStr = Field(alias="GOOGLE_API_KEY")
-    llm_model: str = Field("google:gemini-2.5-pro", alias="LLM_MODEL")
+    llm_model: str = Field("google:gemini-2.5-flash", alias="LLM_MODEL")
 
     # Model for the grounded web-research sub-agent (app/agent/research_agent.py).
     # These are quick, parallel, plain-text grounded lookups, so a cheap/fast tier
