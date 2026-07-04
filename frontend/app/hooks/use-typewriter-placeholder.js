@@ -35,10 +35,28 @@ const CARET_BLINK_MS = 500;
 // ("│") is appended so the placeholder reads like a live cursor is typing.
 export function useTypewriterPlaceholder(prompts) {
   const { agent } = useAgent();
-  const hasMessages = Boolean(agent?.messages && agent.messages.length > 0);
-
+  const [hasMessages, setHasMessages] = useState(() =>
+    Boolean(agent?.messages && agent.messages.length > 0)
+  );
   const [text, setText] = useState("");
   const [caretOn, setCaretOn] = useState(true);
+
+  // Subscribe to agent's message changes to update hasMessages state dynamically.
+  useEffect(() => {
+    if (!agent) return undefined;
+
+    // Set initial state
+    setHasMessages(Boolean(agent.messages && agent.messages.length > 0));
+
+    const { unsubscribe } = agent.subscribe({
+      onMessagesChanged: (arg) => {
+        const msgs = Array.isArray(arg) ? arg : arg?.agent?.messages || agent.messages;
+        setHasMessages(Boolean(msgs && msgs.length > 0));
+      },
+    });
+
+    return () => unsubscribe?.();
+  }, [agent]);
 
   useEffect(() => {
     if (hasMessages) {
