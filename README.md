@@ -21,7 +21,7 @@ Kompass is an autonomous travel planning application that automatically optimize
 
 For detailed guides on the implemented system, refer to the post-building docs:
 
-* [🧭 Interactive Flow Visualization](https://m-ali-ml.github.io/kompass/) — visual, piece-by-piece walkthrough of the whole app (source: [`artifacts/kompass-flow.html`](./artifacts/kompass-flow.html))
+* [🧭 Interactive Flow Visualization](https://m-ali-ml.github.io/kompass/) — visual, piece-by-piece walkthrough of the whole app (tracked copy: [`docs/index.html`](./docs/index.html))
 * [Architecture & Flow Guide](./docs/architecture.md)
 * [Design & Styling Specs](./docs/design.md)
 * [Product & Feature Status](./docs/product.md)
@@ -97,6 +97,38 @@ The frontend is built on **Next.js 16** and **React 19**.
    ```
 
    The interface will be available at `http://localhost:3000`.
+
+### 3. One-command dev environment
+
+`scripts/dev.sh` starts both servers together (backend on `:8000`, frontend on `:3000`), logging to a temporary `dev.log` at the repo root:
+
+```bash
+./scripts/dev.sh        # dev mode (hot reload)
+./scripts/dev.sh -p     # production build + start
+```
+
+### 4. Environment notes
+
+* **`MCP_MODE`** (backend): defaults to `mock` — the accommodations tool serves deterministic fake data with no network calls. Set `MCP_MODE=live` (and a `SERPAPI_API_KEY`) for real Google Hotels prices. Flights always use the keyless Kiwi.com MCP.
+* **Production URLs** (frontend): set `BACKEND_URL` (server-side rewrite target) and `NEXT_PUBLIC_COPILOTKIT_ENDPOINT` (streaming agent endpoint) when the backend isn't `localhost:8000`.
+
+---
+
+## ✅ Running Tests
+
+```bash
+# Backend unit/integration tests
+cd backend && uv run python -m pytest
+
+# Frontend unit tests (Vitest)
+cd frontend && npm run test:unit
+
+# Frontend lint
+cd frontend && npm run lint
+
+# End-to-end tests (Playwright; boots both servers on isolated ports + DB)
+cd frontend && npm run test:e2e
+```
 
 ---
 

@@ -68,6 +68,18 @@ scene_agent = Agent(
 # the same conversation don't both kick off a job before the DB lock lands.
 _in_flight: set[str] = set()
 
+# Strong references to spawned tasks: asyncio only keeps weak refs to tasks, so
+# a fire-and-forget task with no other reference can be garbage-collected
+# mid-flight. Discarded on completion via the done callback.
+_bg_tasks: set[asyncio.Task] = set()
+
+
+def spawn_trip_background(*args, **kwargs) -> None:
+    """Launch `generate_trip_background` as a tracked fire-and-forget task."""
+    task = asyncio.create_task(generate_trip_background(*args, **kwargs))
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+
 # Lazily-created google-genai client (needs GOOGLE_API_KEY, exported by config).
 _genai_client = None
 
@@ -81,9 +93,17 @@ def _client():
     return _genai_client
 
 
+# Cap decode size so a pathological model response can't balloon memory: skip
+# compression for anything over ~24MB raw, and let Pillow refuse decompression
+# bombs (its default MAX_IMAGE_PIXELS check stays enabled).
+_MAX_RAW_BYTES = 24 * 1024 * 1024
+
+
 def _encode_image(raw: bytes, mime: str) -> tuple[bytes, str]:
     """Downscale + compress to a small WebP. Falls back to the raw bytes if
     Pillow is unavailable or the image can't be processed."""
+    if len(raw) > _MAX_RAW_BYTES:
+        raise RuntimeError(f"Image response too large ({len(raw)} bytes); refusing to decode")
     try:
         from PIL import Image
 
@@ -97,12 +117,20 @@ def _encode_image(raw: bytes, mime: str) -> tuple[bytes, str]:
         return raw, mime or "image/png"
 
 
+# Bound the image-model round-trip; the job is fire-and-forget, so a hung call
+# would otherwise hold the in-flight lock for this trip forever.
+_IMAGE_TIMEOUT_S = 120.0
+
+
 async def _generate_image(scene_prompt: str) -> tuple[bytes, str]:
     """Render the scene with the configured Gemini image model. Returns
     (image_bytes, mime). Raises if the model returns no image part."""
-    resp = await _client().aio.models.generate_content(
-        model=settings.image_model,
-        contents=scene_prompt,
+    resp = await asyncio.wait_for(
+        _client().aio.models.generate_content(
+            model=settings.image_model,
+            contents=scene_prompt,
+        ),
+        timeout=_IMAGE_TIMEOUT_S,
     )
     candidates = getattr(resp, "candidates", None) or []
     for candidate in candidates:

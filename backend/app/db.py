@@ -7,7 +7,7 @@ directly, keeping the persistence wiring centralized here.
 import logging
 import os
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -32,6 +32,20 @@ engine: AsyncEngine = create_async_engine(
     echo=False,
     connect_args={"check_same_thread": False},
 )
+
+if settings.database_url.startswith("sqlite"):
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
+        """SQLite disables FK enforcement per-connection by default.
+
+        Without this pragma the declared ON DELETE CASCADE / SET NULL clauses
+        (trip backgrounds, messages, saved scenarios) silently do nothing.
+        """
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
 
 SessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
     bind=engine,

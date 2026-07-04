@@ -7,8 +7,9 @@ Exposes one tool over MCP stdio that the Kompass agent calls through the
 
 Live data comes from **SerpApi's Google Hotels API**
 (https://serpapi.com/google-hotels-api), which returns structured Google Hotels
-results (nightly + total rates, ratings, amenities). This mirrors the Flights
-MCP server (SerpApi Google Flights) and reuses the same ``SERPAPI_API_KEY``.
+results (nightly + total rates, ratings, amenities). SerpApi is used for
+accommodations only — flights come from the remote Kiwi.com MCP
+(``mcp_flight_service.py``), which needs no API key.
 
 Reliability contract: if ``SERPAPI_API_KEY`` is missing, or SerpApi errors /
 returns nothing, the tool returns ``available: false`` with **no fabricated

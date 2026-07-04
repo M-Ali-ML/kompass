@@ -24,8 +24,11 @@ from datetime import datetime, timezone
 
 
 def mock_mode() -> bool:
-    """True when MCP servers should return canned data instead of calling paid APIs."""
-    return os.getenv("MCP_MODE", "live").strip().lower() == "mock"
+    """True when MCP servers should return canned data instead of calling paid APIs.
+
+    Default matches app.config: mock (safe, free) unless MCP_MODE=live is set.
+    """
+    return os.getenv("MCP_MODE", "mock").strip().lower() != "live"
 
 
 def log_call(

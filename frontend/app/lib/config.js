@@ -14,19 +14,24 @@ const BACKEND_PORT = process.env.NEXT_PUBLIC_BACKEND_PORT || "8000";
 
 // The endpoint used for the streaming agent connection.
 //
-// Streaming SSE through Next's dev `rewrites()` proxy gets BUFFERED — the whole
+// Streaming SSE through Next's DEV `rewrites()` proxy gets BUFFERED — the whole
 // turn arrives in one batch at the end instead of token-by-token. To avoid that
-// we connect the agent DIRECTLY to the FastAPI backend, skipping the proxy hop.
-// We reuse the page's own hostname (+ the backend port) so LAN/mobile access
-// keeps working — the backend's CORS allows any localhost/127.* origin. An
-// explicit NEXT_PUBLIC_COPILOTKIT_ENDPOINT (e.g. in E2E) always wins.
+// in dev we connect the agent DIRECTLY to the FastAPI backend, reusing the
+// page's own hostname (+ the backend port) so LAN/mobile access keeps working —
+// the backend's CORS allows any localhost/127.* origin.
+//
+// In PRODUCTION the ":8000 on the same host" guess is wrong more often than
+// right (HTTPS-only hosts, separate API domains), so we default to the
+// same-origin path and expect the fronting proxy to pass SSE through
+// unbuffered. An explicit NEXT_PUBLIC_COPILOTKIT_ENDPOINT (e.g. in E2E, or a
+// production API origin) always wins.
 export function resolveStreamingEndpoint() {
   const override = process.env.NEXT_PUBLIC_COPILOTKIT_ENDPOINT;
   if (override) return override;
-  if (typeof window !== "undefined") {
+  if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
     return `${protocol}//${hostname}:${BACKEND_PORT}/api/copilotkit`;
   }
-  // SSR fallback (the live stream only runs client-side).
+  // Production + SSR fallback (the live stream only runs client-side).
   return "/api/copilotkit";
 }

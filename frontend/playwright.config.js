@@ -37,7 +37,9 @@ module.exports = defineConfig({
       url: `${BACKEND_URL}/health`,
       timeout: 60_000,
       reuseExistingServer: !process.env.CI,
-      env: { DATABASE_URL: TEST_DB_URL },
+      // Force mock MCP data so E2E can never hit paid APIs, whatever the
+      // developer's .env says.
+      env: { DATABASE_URL: TEST_DB_URL, MCP_MODE: 'mock' },
     },
     {
       // Production build + start pointed at the test backend. We build (rather
@@ -50,6 +52,9 @@ module.exports = defineConfig({
       reuseExistingServer: !process.env.CI,
       env: {
         NEXT_PUBLIC_COPILOTKIT_ENDPOINT: COPILOTKIT_ENDPOINT,
+        // Point the server-side /api rewrite at the test backend so any call
+        // that goes through the proxy (rather than API_BASE) lands correctly.
+        BACKEND_URL,
         NEXT_DIST_DIR: '.next-e2e',
       },
     },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAgent } from "@copilotkit/react-core/v2";
 
 // Rotating placeholder prompts that cycle through the chat input to give the
 // user ideas of what to ask for. Each is "typed in" then "typed out" with a
@@ -33,10 +34,17 @@ const CARET_BLINK_MS = 500;
 // deletes it, then advances to the next — looping forever. A trailing caret
 // ("│") is appended so the placeholder reads like a live cursor is typing.
 export function useTypewriterPlaceholder(prompts) {
+  const { agent } = useAgent();
+  const hasMessages = Boolean(agent?.messages && agent.messages.length > 0);
+
   const [text, setText] = useState("");
   const [caretOn, setCaretOn] = useState(true);
 
   useEffect(() => {
+    if (hasMessages) {
+      return undefined;
+    }
+
     let promptIndex = 0;
     let charIndex = 0;
     let deleting = false;
@@ -65,14 +73,22 @@ export function useTypewriterPlaceholder(prompts) {
 
     timer = setTimeout(tick, TYPE_IN_MS);
     return () => clearTimeout(timer);
-  }, [prompts]);
+  }, [prompts, hasMessages]);
 
   // Blink the caret independently so it keeps pulsing during the read holds,
   // not just while characters are being added/removed.
   useEffect(() => {
+    if (hasMessages) {
+      return undefined;
+    }
+
     const id = setInterval(() => setCaretOn((on) => !on), CARET_BLINK_MS);
     return () => clearInterval(id);
-  }, []);
+  }, [hasMessages]);
+
+  if (hasMessages) {
+    return "Ask a question...";
+  }
 
   // The caret is part of the placeholder string; swap a thin space in when
   // "off" so the text width stays put and the caret simply blinks in place.

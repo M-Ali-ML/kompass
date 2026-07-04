@@ -45,7 +45,7 @@ export function ResearchCard({ status, parameters, result }) {
       <ToolCard
         icon={Globe}
         label="Web research"
-        error="Live web search was temporarily unavailable. I'll work from what I already know."
+        error="Live web search was temporarily unavailable. I'll try again or flag anything that couldn't be verified."
       />
     );
   }

@@ -31,24 +31,40 @@ port_in_use() {
     lsof -i :"$1" >/dev/null 2>&1
 }
 
+# Only kill processes that look like OUR dev servers (uvicorn / next / node),
+# never an arbitrary service that happens to sit on the port — refuse and exit
+# with instructions in that case.
 kill_port_owner() {
     local port=$1
     local pids
     pids=$(lsof -t -i :"$port")
-    if [ -n "$pids" ]; then
-        echo -e "${YELLOW}Port $port is in use by PID(s): $pids. Killing...${NC}"
+    if [ -z "$pids" ]; then
+        return
+    fi
+    for pid in $pids; do
+        local cmd
+        cmd=$(ps -p "$pid" -o comm= 2>/dev/null)
+        case "$cmd" in
+            *python*|*uvicorn*|*node*|*next*) ;;
+            *)
+                echo -e "${RED}Port $port is used by PID $pid ('$cmd'), which doesn't look like a Kompass dev server.${NC}"
+                echo -e "${RED}Refusing to kill it — stop that process yourself or change the port, then re-run.${NC}"
+                exit 1
+                ;;
+        esac
+    done
+    echo -e "${YELLOW}Port $port is in use by PID(s): $pids. Killing...${NC}"
+    for pid in $pids; do
+        kill "$pid" 2>/dev/null
+    done
+    sleep 1
+    # If still in use, force kill
+    if port_in_use "$port"; then
+        echo -e "${RED}Port $port still in use. Force killing...${NC}"
         for pid in $pids; do
-            kill "$pid" 2>/dev/null
+            kill -9 "$pid" 2>/dev/null
         done
         sleep 1
-        # If still in use, force kill
-        if port_in_use "$port"; then
-            echo -e "${RED}Port $port still in use. Force killing...${NC}"
-            for pid in $pids; do
-                kill -9 "$pid" 2>/dev/null
-            done
-            sleep 1
-        fi
     fi
 }
 

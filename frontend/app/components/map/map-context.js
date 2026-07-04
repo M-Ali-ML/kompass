@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 // Shared "active route" store that decouples the chat-side scenario cards (which
 // know the itinerary) from the right-panel map (which renders it). A scenario
@@ -25,18 +25,45 @@ export function routeFromScenario(scenario, { destination, currency } = {}) {
 }
 
 export function MapStateProvider({ children }) {
-  const [activeRoute, setActiveRoute] = useState(null);
+  const [activeRoute, setActiveRouteState] = useState(null);
   // Transient highlight driven by hovering an accommodation tile in the chat
   // (a stays card). Shape: { name, lat, lng } | null.
   const [hoveredStay, setHoveredStay] = useState(null);
 
-  const setRouteFromScenario = useCallback((scenario, opts) => {
-    setActiveRoute(routeFromScenario(scenario, opts));
+  // Whether the current route was chosen explicitly by the user (a "View on
+  // map" click) rather than auto-plotted by a card. Auto-plots must never
+  // stomp an explicit choice; clearing the route (trip switch) resets the pin.
+  const userPinnedRef = useRef(false);
+
+  const setActiveRoute = useCallback((route) => {
+    userPinnedRef.current = route !== null;
+    setActiveRouteState(route);
   }, []);
 
+  // Auto-plot path used by cards when they stream in / rehydrate. Skipped when
+  // the user has explicitly picked a route this trip.
+  const setAutoRoute = useCallback((route) => {
+    if (userPinnedRef.current) return;
+    setActiveRouteState(route);
+  }, []);
+
+  const setRouteFromScenario = useCallback(
+    (scenario, opts) => {
+      setActiveRoute(routeFromScenario(scenario, opts));
+    },
+    [setActiveRoute]
+  );
+
   const value = useMemo(
-    () => ({ activeRoute, setActiveRoute, setRouteFromScenario, hoveredStay, setHoveredStay }),
-    [activeRoute, setRouteFromScenario, hoveredStay]
+    () => ({
+      activeRoute,
+      setActiveRoute,
+      setAutoRoute,
+      setRouteFromScenario,
+      hoveredStay,
+      setHoveredStay,
+    }),
+    [activeRoute, setActiveRoute, setAutoRoute, setRouteFromScenario, hoveredStay]
   );
 
   return <MapStateContext.Provider value={value}>{children}</MapStateContext.Provider>;
@@ -50,6 +77,7 @@ export function useMapState() {
     return {
       activeRoute: null,
       setActiveRoute: () => {},
+      setAutoRoute: () => {},
       setRouteFromScenario: () => {},
       hoveredStay: null,
       setHoveredStay: () => {},

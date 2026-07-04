@@ -143,9 +143,10 @@ async def test_generate_scenarios_tolerates_off_by_one_day(agent_deps):
 
     ctx = RunContext(deps=agent_deps, model=MagicMock(), usage=MagicMock(), prompt="test")
 
-    # 3-night window (Sep 4 → Sep 7) with 2 distinct days — one short of the span.
-    # The ±1 tolerance should let it render rather than forcing a regeneration.
-    days = [_day(1), _day(2)]
+    # 4-day inclusive window (Sep 4 → Sep 7) with 3 distinct days — one short of
+    # the span. The ±1 tolerance should let it render rather than forcing a
+    # regeneration.
+    days = [_day(1), _day(2), _day(3)]
     payload = await generate_scenarios(
         ctx, "Santorini", [_make_scenario_with_days("Almost there", days)]
     )

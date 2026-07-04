@@ -13,13 +13,10 @@ export function CopilotKitWrapper({ children }) {
     []
   );
 
-  return (
-    <CopilotKit
-      agents__unsafe_dev_only={{
-        default: agentInstance,
-      }}
-    >
-      {children}
-    </CopilotKit>
-  );
+  // `selfManagedAgents` registers a client-side agent that talks straight to
+  // our own AG-UI backend (no CopilotKit runtime in between). Safe here: the
+  // HttpAgent carries only a URL — no API keys ever reach the browser bundle.
+  const agents = useMemo(() => ({ default: agentInstance }), [agentInstance]);
+
+  return <CopilotKit selfManagedAgents={agents}>{children}</CopilotKit>;
 }

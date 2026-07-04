@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgent } from "@copilotkit/react-core/v2";
 import { getTrip, saveTripMessages } from "../lib/trips-api";
 
@@ -50,7 +50,13 @@ export function useActiveTrip() {
     return () => sub?.unsubscribe?.();
   }, [agent, reloadTrips]);
 
+  // Monotonic guard so rapid trip switches can't race: only the most recent
+  // selection is allowed to apply its fetched messages. A slower, earlier
+  // getTrip() resolving last would otherwise overwrite the newer trip's chat.
+  const selectSeqRef = useRef(0);
+
   const handleNewTrip = useCallback(() => {
+    selectSeqRef.current += 1; // invalidate any in-flight trip selection
     agent?.setMessages([]);
     setActiveThreadId(newThreadId());
   }, [agent]);
@@ -58,8 +64,10 @@ export function useActiveTrip() {
   const handleSelectTrip = useCallback(
     async (tripId) => {
       if (!agent || tripId === activeThreadId) return;
+      const seq = ++selectSeqRef.current;
       try {
         const messages = await getTrip(tripId);
+        if (seq !== selectSeqRef.current) return; // superseded by a newer selection
         agent.setMessages(messages);
         setActiveThreadId(tripId);
       } catch (err) {

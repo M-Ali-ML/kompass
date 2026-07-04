@@ -44,6 +44,9 @@ _TOP_N = max(1, int(os.getenv("KIWI_FLIGHTS_TOP_N", "5")))
 _DATE_SAMPLES = max(1, int(os.getenv("KIWI_DATE_SAMPLES", "5")))
 # Kiwi flex range maximum (the tool accepts 0..3 days either side).
 _FLEX = 3
+# Hard cap on one connect+search round-trip so a hung remote can't stall the
+# agent turn; the caller degrades to an empty result on expiry.
+_CALL_TIMEOUT_S = float(os.getenv("KIWI_MCP_TIMEOUT", "30"))
 
 
 # --- Date helpers -------------------------------------------------------------
@@ -174,13 +177,16 @@ class KiwiMCPFlightServiceAdapter(FlightServicePort):
         Retries once on a transport failure to ride out a transient TLS/connect
         blip, then degrades to an empty result so the agent falls back to search_web.
         """
+        async def _one_call():
+            async with streamablehttp_client(self.url) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    return await session.call_tool(_KIWI_TOOL, arguments=arguments)
+
         last_error: Exception | None = None
         for attempt in range(2):
             try:
-                async with streamablehttp_client(self.url) as (read, write, _):
-                    async with ClientSession(read, write) as session:
-                        await session.initialize()
-                        result = await session.call_tool(_KIWI_TOOL, arguments=arguments)
+                result = await asyncio.wait_for(_one_call(), timeout=_CALL_TIMEOUT_S)
             except Exception as e:  # noqa: BLE001 - degrade gracefully to search_web
                 last_error = e
                 if attempt == 0:

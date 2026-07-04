@@ -54,5 +54,5 @@ class TripRepository(ABC):
         """Return the stored AG-UI message history for a trip (empty if none)."""
 
     @abstractmethod
-    async def delete_trip(self, trip_id: str) -> None:
-        """Delete a trip and its messages. No-op if the trip does not exist."""
+    async def delete_trip(self, trip_id: str) -> bool:
+        """Delete a trip and its messages. Returns False if the trip didn't exist."""

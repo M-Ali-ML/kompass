@@ -1,4 +1,3 @@
-import asyncio
 import calendar
 import logging
 from collections import Counter
@@ -6,7 +5,7 @@ from datetime import date, datetime
 from pydantic_ai import Agent, RunContext
 from app.config import settings
 from app.agent.dependency import AgentDependencies
-from app.agent.image_agent import generate_trip_background
+from app.agent.image_agent import spawn_trip_background
 from app.agent.research_agent import run_research
 from app.domain import Scenario, UserPreferences
 
@@ -219,7 +218,7 @@ async def search_accommodations(
     destination: str,
     check_in_date: str,
     check_out_date: str,
-    guests: int = 2,
+    guests: int | None = None,
     max_price: int | None = None,
     min_rating: float | None = None,
 ) -> dict:
@@ -234,12 +233,19 @@ async def search_accommodations(
         destination: City / area to stay in (e.g. 'Santorini', 'Athens city center').
         check_in_date: Check-in date in 'YYYY-MM-DD' format.
         check_out_date: Check-out date in 'YYYY-MM-DD' format.
-        guests: Number of adult guests.
+        guests: Number of adult guests. Defaults to the party size already
+            searched this run (via `search_flights`), else 1 (solo).
         max_price: Optional maximum nightly rate (in the traveler's currency) to cap results.
         min_rating: Optional minimum guest rating (e.g. 4.0) to filter results.
     """
     if ctx.deps.accommodation_service is None:
         return {"error": "Accommodation search is unavailable.", "options": []}
+
+    # Default guests to the party size established earlier in the run (e.g. the
+    # `passengers` count passed to search_flights) so lodging prices match the
+    # actual party instead of a hardcoded couple.
+    if guests is None:
+        guests = ctx.deps.party_size or 1
 
     currency = ctx.deps.user_preferences.currency
     logger.info(
@@ -267,14 +273,16 @@ async def search_accommodations(
 async def search_web(ctx: RunContext[AgentDependencies], query: str) -> str:
     """Search the live web (Google) for current, real-world travel information.
 
-    This is the most reliable source of live data. Use it for:
-    - Flight price ranges, example carriers, and good dates for a route.
-    - Accommodation options (hotels/areas, nightly prices, ratings).
+    This is the FALLBACK for prices: prefer the structured tools first
+    (`search_flights` / `find_cheapest_dates` for flights,
+    `search_accommodations` for lodging) and only use this for prices when
+    they return an error or no options. Use it directly for:
     - Destination knowledge: best time to visit, weather, neighborhoods, visas, events.
+    - Identifying the operating airline/carrier on a route when needed.
+    - Flight/lodging prices ONLY after the structured tools came up empty.
 
-    Prefer this when you need real prices or facts. The returned text is
-    grounded in web results — extract concrete numbers from it into your plan,
-    and tell the traveler figures are approximate.
+    The returned text is grounded in web results — extract concrete numbers
+    from it into your plan, and tell the traveler figures are approximate.
 
     Args:
         query: A focused natural-language search query (include dates, origin/
@@ -336,7 +344,8 @@ async def generate_scenarios(
     """Render fully-formed travel scenarios as cards (1 single plan, or 2-3 to compare).
 
     Build each `Scenario` yourself first — research real prices and dates with
-    `search_web` / `find_cheapest_dates` / `search_flights`, assemble the
+    `find_cheapest_dates` / `search_flights` / `search_accommodations`
+    (falling back to `search_web` when they return nothing), assemble the
     itineraries, compute each `cost_breakdown`, and assess each `stress_score`
     from its `stress_factors`. Then call this tool **once** with the complete
     list. Pass a single scenario to present one definitive plan (renders as one
@@ -381,13 +390,15 @@ async def generate_scenarios(
         problems = []
         for s in scenarios:
             label = s.comparison_label or s.label
-            nights = (s.end_date - s.start_date).days
+            # The prompt's contract is one DaySummary per calendar day of the
+            # trip, start through end INCLUSIVE (a Sep 4 → Sep 7 trip = 4 days).
+            days_inclusive = (s.end_date - s.start_date).days + 1
             have = len(s.itinerary.days)
             # Allow a ±1 tolerance so a days-vs-nights off-by-one (e.g. 8 entries
-            # for a 9-night window) doesn't trigger a full regeneration; only
+            # for a 9-day window) doesn't trigger a full regeneration; only
             # reject when the plan is materially short of the trip span.
-            if nights >= 3 and have < nights - 1:
-                problems.append(f"'{label}' has only {have}/{nights} days")
+            if days_inclusive >= 4 and have < days_inclusive - 1:
+                problems.append(f"'{label}' has only {have}/{days_inclusive} days")
                 continue
             counts = Counter(_day_fingerprint(d) for d in s.itinerary.days)
             dup_titles = sorted(
@@ -467,14 +478,12 @@ async def set_background_image(ctx: RunContext[AgentDependencies], scene_descrip
     if not trip_id:
         return "I couldn't update the background image — there's no active trip yet."
     # Fire-and-forget so the chat reply isn't blocked by image rendering.
-    asyncio.create_task(
-        generate_trip_background(
-            trip_id,
-            scene_description,
-            ctx.deps.user_preferences,
-            force=True,
-            override_scene=scene_description,
-        )
+    spawn_trip_background(
+        trip_id,
+        scene_description,
+        ctx.deps.user_preferences,
+        force=True,
+        override_scene=scene_description,
     )
     logger.info(f"Regenerating background image for trip {trip_id}")
     return "Updating the trip's background image now — it'll refresh in a moment."
@@ -494,6 +503,17 @@ def get_system_prompt(ctx: RunContext[AgentDependencies]) -> str:
     current_date_str = datetime.now().astimezone().strftime("%Y-%m-%d")
     logger.info(f"Injected current date context: {current_date_str}")
     logger.info(f"Active user preferences in run dependencies: {ctx.deps.user_preferences}")
-    return raw_prompt.replace("{current_time}", current_date_str)
+    # Surface the saved profile (home_city, currency, vibe, ...) to the model so
+    # it uses stored preferences instead of re-asking. Only non-default fields
+    # are listed; the block lives at the tail of the prompt so mid-conversation
+    # preference updates only invalidate the KV-cache suffix, not the prefix.
+    prefs = ctx.deps.user_preferences
+    pref_items = prefs.model_dump(exclude_defaults=True, exclude_none=True)
+    prefs_str = (
+        ", ".join(f"{k}={v}" for k, v in pref_items.items()) if pref_items else "none saved yet"
+    )
+    return raw_prompt.replace("{current_time}", current_date_str).replace(
+        "{user_preferences}", prefs_str
+    )
 
 

@@ -14,10 +14,14 @@ const nextConfig = {
     root: __dirname,
   },
   async rewrites() {
+    // Proxy non-streaming API calls to the FastAPI backend. BACKEND_URL is a
+    // server-side env var (no NEXT_PUBLIC_ prefix) so deployments can point at
+    // a real API host; local dev falls back to the dev.sh default.
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/api/:path*',
+        destination: `${backendUrl}/api/:path*`,
       },
     ];
   },

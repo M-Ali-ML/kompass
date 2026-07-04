@@ -48,6 +48,20 @@ export const googleFlightsUrl = (origin, destination, departureIso) => {
   return `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}`;
 };
 
+// Guard for URLs that come from agent/tool data (booking links etc.) before
+// they're rendered as <a href>. Only http(s) is allowed — anything else
+// (javascript:, data:, relative junk) is dropped so a malicious or malformed
+// tool result can't smuggle in an executable link.
+export const safeExternalUrl = (url) => {
+  if (typeof url !== "string" || !url.trim()) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+};
+
 // Tool results may arrive as an object or a JSON string depending on transport.
 export const parseResult = (result) => {
   if (!result) return null;

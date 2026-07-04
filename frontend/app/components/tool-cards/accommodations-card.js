@@ -4,7 +4,13 @@ import { ToolCard } from "../tool-card";
 import { PriceBar } from "../price-bar";
 import { SkeletonGrid } from "../skeletons";
 import { useMapState } from "../map/map-context";
-import { formatPrice, parseResult, resultError, isPreparing } from "../../lib/format";
+import {
+  formatPrice,
+  parseResult,
+  resultError,
+  isPreparing,
+  safeExternalUrl,
+} from "../../lib/format";
 
 export const accommodationsParameters = z.object({
   destination: z.string().optional(),
@@ -52,6 +58,7 @@ function HotelTile({ o, currency, topPick, minRate, maxRate }) {
   const cur = o.currency || currency;
   const amenities = topAmenities(o.amenities);
   const hasCoords = typeof o.latitude === "number" && typeof o.longitude === "number";
+  const link = safeExternalUrl(o.link);
 
   const onEnter = () => {
     if (hasCoords) setHoveredStay({ name: o.name, lat: o.latitude, lng: o.longitude });
@@ -64,7 +71,7 @@ function HotelTile({ o, currency, topPick, minRate, maxRate }) {
         <div className="min-w-0">
           <div className="flex items-center gap-1 text-sm font-semibold text-foreground">
             <span className="truncate">{o.name}</span>
-            {o.link && (
+            {link && (
               <ExternalLink className="w-3 h-3 text-secondary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
             )}
           </div>
@@ -114,7 +121,7 @@ function HotelTile({ o, currency, topPick, minRate, maxRate }) {
       ? "bg-pink-50 border-2 border-primary pink-shadow"
       : "bg-pink-50/50 border border-pink-100"
   }`;
-  const hover = o.link ? "hover:border-primary/40 hover:bg-pink-50" : "";
+  const hover = link ? "hover:border-primary/40 hover:bg-pink-50" : "";
 
   const badge = topPick && (
     <span className="absolute -top-2 left-3 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white pink-shadow">
@@ -122,9 +129,9 @@ function HotelTile({ o, currency, topPick, minRate, maxRate }) {
     </span>
   );
 
-  return o.link ? (
+  return link ? (
     <a
-      href={o.link}
+      href={link}
       target="_blank"
       rel="noopener noreferrer"
       title="View this property"

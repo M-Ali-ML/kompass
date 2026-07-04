@@ -49,8 +49,10 @@ class Settings(BaseSettings):
     # Accommodations MCP mode. "live" calls SerpApi (costs money); "mock" returns
     # deterministic, clearly-flagged fake data with NO network calls / no key
     # (handy for dev so you don't burn the shared SerpApi quota). Flights always
-    # hit the live Kiwi MCP and are unaffected by this flag.
-    mcp_mode: str = Field("live", alias="MCP_MODE")
+    # hit the live Kiwi MCP and are unaffected by this flag. Defaults to "mock"
+    # so a bare/partial env never silently spends the SerpApi quota — opt in to
+    # live data explicitly with MCP_MODE=live (matches .env.example).
+    mcp_mode: str = Field("mock", alias="MCP_MODE")
     # Optional path; when set, every MCP tool call's request/response is
     # appended as a JSON line for inspection.
     mcp_log_file: Optional[str] = Field(None, alias="MCP_LOG_FILE")

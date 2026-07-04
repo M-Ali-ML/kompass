@@ -17,7 +17,7 @@ import {
   Trash2,
   ExternalLink,
 } from "lucide-react";
-import { formatPrice, googleFlightsUrl } from "../../lib/format";
+import { formatPrice, googleFlightsUrl, safeExternalUrl } from "../../lib/format";
 import { saveScenario, deleteSavedScenario } from "../../lib/trips-api";
 import { useMapState, routeFromScenario } from "../map/map-context";
 import { MODE_GLYPH } from "../../lib/transport";
@@ -266,7 +266,7 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
                   const layover = i < legs.length - 1 ? layoverMinutes(leg, legs[i + 1]) : 0;
                   const flightHref =
                     leg.mode === "flight"
-                      ? leg.booking_link ||
+                      ? safeExternalUrl(leg.booking_link) ||
                         googleFlightsUrl(leg.origin, leg.destination, leg.departure_time)
                       : null;
                   const carrier = cleanCarrier(leg.carrier);
@@ -357,15 +357,16 @@ export function ScenarioDetailModal({ scenario, currency, destination, savedId, 
               <div className="flex flex-col gap-2">
                 {stays.map((s, i) => {
                   const n = nightsBetween(s.check_in, s.check_out);
+                  const stayLink = safeExternalUrl(s.booking_link);
                   return (
                     <div
                       key={i}
                       className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-surface border border-pink-100 purple-shadow"
                     >
                       <div className="min-w-0">
-                        {s.booking_link ? (
+                        {stayLink ? (
                           <a
-                            href={s.booking_link}
+                            href={stayLink}
                             target="_blank"
                             rel="noopener noreferrer"
                             title="View this property"

@@ -40,7 +40,11 @@ class UserPreferences(BaseModel):
         merged = self.model_copy(deep=True)
         if override.home_city:
             merged.home_city = override.home_city
-        if override.direct_flights_only:
+        # Honor an explicit direct_flights_only=False ("connections are OK now")
+        # as well as True — but don't let an omitted field reset a stored True.
+        if "direct_flights_only" in override.model_fields_set:
+            merged.direct_flights_only = override.direct_flights_only
+        elif override.direct_flights_only:
             merged.direct_flights_only = True
         if override.preferred_transit_modes:
             merged.preferred_transit_modes = list(override.preferred_transit_modes)

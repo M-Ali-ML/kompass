@@ -110,16 +110,18 @@ class SqliteTripRepository(TripRepository):
                 return []
             return list(trip.message_history)
 
-    async def delete_trip(self, trip_id: str) -> None:
+    async def delete_trip(self, trip_id: str) -> bool:
         async with self._session_factory() as session:
             trip = await session.get(Trip, trip_id)
-            if trip is not None:
-                # Explicitly remove the background row (SQLite FK ON DELETE
-                # CASCADE only fires when PRAGMA foreign_keys=ON, which we don't
-                # rely on).
-                background = await session.get(TripBackground, trip_id)
-                if background is not None:
-                    await session.delete(background)
-                await session.delete(trip)
-                await session.commit()
-                logger.info("Deleted trip %s", trip_id)
+            if trip is None:
+                return False
+            # Belt-and-braces: FK enforcement is now enabled (see app.db), but
+            # deleting the background row explicitly keeps old databases whose
+            # connections predate the pragma clean too.
+            background = await session.get(TripBackground, trip_id)
+            if background is not None:
+                await session.delete(background)
+            await session.delete(trip)
+            await session.commit()
+            logger.info("Deleted trip %s", trip_id)
+            return True

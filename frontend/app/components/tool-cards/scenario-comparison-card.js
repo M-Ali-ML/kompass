@@ -189,7 +189,7 @@ function ComparisonShell({ destination, estimated, spin = false, children }) {
 // Generative UI for generate_scenarios — side-by-side scenario comparison cards.
 export function ScenarioComparisonCard({ status, parameters, result }) {
   const destination = parameters?.destination || "";
-  const { setActiveRoute } = useMapState();
+  const { setAutoRoute } = useMapState();
 
   const data = status === "complete" ? parseResult(result) : null;
   const scenarios = data?.scenarios || [];
@@ -216,7 +216,10 @@ export function ScenarioComparisonCard({ status, parameters, result }) {
     : null;
   useEffect(() => {
     if (bestScenario) {
-      setActiveRoute(routeFromScenario(bestScenario, { destination: mapDestination, currency }));
+      // Auto-plot (not setActiveRoute): never stomps a route the user picked
+      // explicitly via "View on map". On trip resume every rehydrated card
+      // fires this in message order, so the newest comparison wins the map.
+      setAutoRoute(routeFromScenario(bestScenario, { destination: mapDestination, currency }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bestSig]);

@@ -1,17 +1,16 @@
-import asyncio
 import json
 import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from pydantic_ai.usage import UsageLimits
 
 from app.agent.agent import kompass_agent
 from app.agent.dependency import get_agent_dependencies
-from app.agent.image_agent import generate_trip_background
+from app.agent.image_agent import spawn_trip_background
 from app.api.dependencies import (
     get_profile_repository,
     get_saved_scenario_repository,
@@ -189,7 +188,10 @@ async def copilotkit_endpoint(
         convo_prefs = extract_preferences_from_history(messages)
         logger.info(f"Reconstructed conversation preferences: {convo_prefs}")
     except Exception as e:
+        # A body we can't parse would otherwise continue with thread_id=None,
+        # silently skipping persistence and producing a confusing partial run.
         logger.error(f"Error parsing AG-UI run input: {e}")
+        raise HTTPException(status_code=400, detail="Malformed AG-UI run input") from e
 
     # Layer conversation preferences on top of the stored global profile baseline.
     try:
@@ -213,9 +215,7 @@ async def copilotkit_endpoint(
     if settings.background_image_enabled and thread_id:
         convo_text = _conversation_text(ag_messages)
         if convo_text.strip():
-            asyncio.create_task(
-                generate_trip_background(thread_id, convo_text, user_preferences)
-            )
+            spawn_trip_background(thread_id, convo_text, user_preferences)
 
     deps = get_agent_dependencies(user_preferences=user_preferences, trip_id=thread_id)
 
@@ -327,9 +327,16 @@ async def get_trip(
     }
 
 
+# Bounds on a persisted history: generous for real trips (hundreds of turns,
+# large tool payloads) but a hard stop against a client shoveling arbitrary
+# megabytes into SQLite.
+_MAX_HISTORY_MESSAGES = 2000
+_MAX_HISTORY_BYTES = 8 * 1024 * 1024
+
+
 class SaveMessagesRequest(BaseModel):
-    messages: list[dict]
-    title: str | None = None
+    messages: list[dict] = Field(max_length=_MAX_HISTORY_MESSAGES)
+    title: str | None = Field(default=None, max_length=200)
 
 
 @router.put("/api/trips/{trip_id}/messages")
@@ -340,6 +347,9 @@ async def save_trip_messages(
 ):
     """Persist the full AG-UI message history for a trip (called by the client
     after each run so generative-UI cards survive a reload)."""
+    approx_size = sum(len(json.dumps(m, default=str)) for m in payload.messages)
+    if approx_size > _MAX_HISTORY_BYTES:
+        raise HTTPException(status_code=413, detail="Message history too large")
     title = payload.title or _title_from_messages(payload.messages)
     await trip_repo.save_message_history(trip_id, payload.messages, title=title)
     return {"status": "ok", "id": trip_id, "count": len(payload.messages)}
@@ -370,7 +380,9 @@ async def delete_trip(
     trip_id: str,
     trip_repo: TripRepository = Depends(get_trip_repository),
 ):
-    await trip_repo.delete_trip(trip_id)
+    deleted = await trip_repo.delete_trip(trip_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Trip not found")
     return {"status": "deleted", "id": trip_id}
 
 

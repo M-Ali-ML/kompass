@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { CopilotChat } from "@copilotkit/react-core/v2";
 import { AlertTriangle, X } from "lucide-react";
@@ -55,18 +55,20 @@ export default function Home() {
 }
 
 function Workspace({ activeThreadId, reloadKey, handleNewTrip, handleSelectTrip }) {
-  const { activeRoute, hoveredStay, setActiveRoute } = useMapState();
+  const { activeRoute, hoveredStay, setActiveRoute, setHoveredStay } = useMapState();
 
   // Show the map panel only when there's data to plot. A new/empty trip (or one
   // still gathering info) keeps the map hidden so the chat gets the full width.
   const showMap = routeHasData(activeRoute) || Boolean(hoveredStay);
 
-  // Reset the plotted route whenever the active trip changes (new trip or
-  // switching trips) so a stale route never lingers on the map. The relevant
-  // scenario card re-plots its route once a resumed trip's messages render.
+  // Reset all map state whenever the active trip changes (new trip or
+  // switching trips) so a stale route or hovered-hotel marker never lingers on
+  // the map. The relevant scenario card re-plots its route once a resumed
+  // trip's messages render.
   useEffect(() => {
     setActiveRoute(null);
-  }, [activeThreadId, setActiveRoute]);
+    setHoveredStay(null);
+  }, [activeThreadId, setActiveRoute, setHoveredStay]);
 
   // Surface run-level failures (e.g. an MCP server / model error mid-run) as a
   // dismissible toast over the chat, then auto-clear. Tool-level "no live data"
@@ -149,8 +151,11 @@ function Workspace({ activeThreadId, reloadKey, handleNewTrip, handleSelectTrip 
   useTripTools();
 
   // Animated chat-input placeholder that types example prompts in and out, to
-  // suggest things the user could ask for on a fresh trip.
+  // suggest things the user could ask for on a fresh trip. Memoized so the
+  // labels object keeps its identity between animation frames with the same
+  // text (read-holds), sparing CopilotChat those re-renders.
   const placeholder = useTypewriterPlaceholder(PLACEHOLDER_PROMPTS);
+  const chatLabels = useMemo(() => ({ chatInputPlaceholder: placeholder }), [placeholder]);
 
   const sidebar = (
     <TripSidebar
@@ -184,9 +189,7 @@ function Workspace({ activeThreadId, reloadKey, handleNewTrip, handleSelectTrip 
         className="h-full"
         onError={handleChatError}
         chatView={CHAT_VIEW_SLOTS}
-        labels={{
-          chatInputPlaceholder: placeholder,
-        }}
+        labels={chatLabels}
       />
     </div>
   );

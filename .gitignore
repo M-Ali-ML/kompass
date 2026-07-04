@@ -70,6 +70,7 @@ MANIFEST
 # Logs
 logs/
 *.log
+/dev.log
 
 # Environment & Secrets
 .env

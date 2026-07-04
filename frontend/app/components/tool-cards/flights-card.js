@@ -10,6 +10,7 @@ import {
   googleFlightsUrl,
   resultError,
   isPreparing,
+  safeExternalUrl,
 } from "../../lib/format";
 
 export const flightsParameters = z.object({
@@ -23,7 +24,7 @@ export const flightsParameters = z.object({
 
 function FlightTile({ o, parameters, currency, minPrice, maxPrice, cheapest }) {
   const href =
-    o.booking_link ||
+    safeExternalUrl(o.booking_link) ||
     googleFlightsUrl(
       o.origin || parameters?.origin,
       o.destination || parameters?.destination,

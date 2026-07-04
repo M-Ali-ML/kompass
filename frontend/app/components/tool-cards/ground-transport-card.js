@@ -46,7 +46,7 @@ export function GroundTransportCard({ status, parameters, result }) {
       <ToolCard
         icon={TrainFront}
         label={`Ground transport · ${route}`}
-        error="Live transit lookup was temporarily unavailable. I'll estimate from what I already know."
+        error="Live transit lookup was temporarily unavailable. I'll try another source or ask you to adjust the plan — no prices will be invented."
       />
     );
   }
