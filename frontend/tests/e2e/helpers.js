@@ -10,6 +10,10 @@ const { expect } = require('@playwright/test');
 // too-early click can be swallowed. Re-clicking until the aside appears makes
 // the helper robust to that.
 async function openTrips(page) {
+  // Wait for the chat input textarea to be visible first to ensure React hydration has completed.
+  // This prevents clicks from being swallowed or reset by hydration.
+  await page.locator('textarea').first().waitFor({ state: 'visible', timeout: 10_000 });
+
   const sidebar = page.locator('aside');
   await expect(async () => {
     if (await sidebar.isVisible().catch(() => false)) return;
