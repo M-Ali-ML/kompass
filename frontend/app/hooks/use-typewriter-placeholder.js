@@ -46,6 +46,7 @@ export function useTypewriterPlaceholder(prompts) {
     if (!agent) return undefined;
 
     // Set initial state
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasMessages(Boolean(agent.messages && agent.messages.length > 0));
 
     const { unsubscribe } = agent.subscribe({
