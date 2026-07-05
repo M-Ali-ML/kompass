@@ -14,10 +14,17 @@ Kiwi exposes a single ``search-flight`` tool. We map it to the two port methods:
   each using Kiwi's ±3-day flex window so a handful of calls covers a whole month,
   then the cheapest fare per departure date is kept and ranked.
 
-Reliability contract: any transport/API error degrades to an **empty** result
-(no fabricated data) so the agent falls back to its grounded ``search_web`` tool.
-Each call uses a short-lived connection, which keeps concurrent date sampling
-simple and avoids stale long-lived remote sessions.
+Reliability contract: a transport/protocol failure (dead connection, timeout, an
+``isError`` tool result) raises ``KiwiTransportError`` — it is NOT silently
+turned into an empty result here, because that would make "we couldn't reach
+Kiwi" indistinguishable from "Kiwi genuinely has zero itineraries for this
+route/date", both to the agent and to anyone debugging a trace later. Callers
+(the ``search_flights`` / ``find_cheapest_dates`` agent tools) catch
+``KiwiTransportError`` and degrade to an empty result with an explicit
+``data_source_error`` flag, so the agent still falls back to ``search_web``
+but the failure mode stays visible. Each call uses a short-lived connection,
+which keeps concurrent date sampling simple and avoids stale long-lived
+remote sessions.
 """
 
 import asyncio
@@ -39,14 +46,39 @@ _KIWI_TOOL = "search-flight"
 # Cheapest-first cap for a single-date search.
 _TOP_N = max(1, int(os.getenv("KIWI_FLIGHTS_TOP_N", "5")))
 # How many flex-window searches to fire across a cheapest-dates range. Each Kiwi
-# call covers a ~7-day window (±3 flex), so ~5 calls span a month. Also bounds
-# the concurrency of the gather below.
+# call covers a ~7-day window (±3 flex), so ~5 calls span a month.
 _DATE_SAMPLES = max(1, int(os.getenv("KIWI_DATE_SAMPLES", "5")))
 # Kiwi flex range maximum (the tool accepts 0..3 days either side).
 _FLEX = 3
 # Hard cap on one connect+search round-trip so a hung remote can't stall the
 # agent turn; the caller degrades to an empty result on expiry.
 _CALL_TIMEOUT_S = float(os.getenv("KIWI_MCP_TIMEOUT", "30"))
+# Cap on simultaneous in-flight Kiwi sessions during a find_cheapest_dates
+# sweep. Opening all _DATE_SAMPLES short-lived MCP sessions to the same remote
+# endpoint at once is a known trigger for anyio/httpx TaskGroup cleanup races
+# and remote-side throttling, both of which surface as every call failing.
+_MAX_CONCURRENT_SEARCHES = max(1, int(os.getenv("KIWI_MAX_CONCURRENT_SEARCHES", "2")))
+
+
+class KiwiTransportError(RuntimeError):
+    """A search-flight call failed at the transport/MCP-protocol level.
+
+    Distinct from Kiwi legitimately returning zero itineraries: this means we
+    couldn't complete the round-trip at all (connect/TLS/timeout failure, or
+    an ``isError`` tool result), so the "no options" it degrades to upstream
+    should not be read as "this route/date has no flights".
+    """
+
+
+def _describe_exception(exc: BaseException) -> str:
+    """Unwrap an ``ExceptionGroup`` (raised by anyio/asyncio TaskGroups) into
+    the actual underlying error(s) instead of the opaque "unhandled errors in
+    a TaskGroup (N sub-exception)" wrapper message.
+    """
+    sub_exceptions = getattr(exc, "exceptions", None)
+    if sub_exceptions:
+        return "; ".join(_describe_exception(e) for e in sub_exceptions)
+    return f"{type(exc).__name__}: {exc}"
 
 
 # --- Date helpers -------------------------------------------------------------
@@ -164,7 +196,8 @@ class KiwiMCPFlightServiceAdapter(FlightServicePort):
             logger.info("Kiwi MCP reachable at %s", self.url)
         except Exception as e:  # noqa: BLE001 - tools degrade per-call, so never fatal
             logger.warning(
-                "Kiwi MCP not reachable at startup (%s); flight tools will retry per call.", e
+                "Kiwi MCP not reachable at startup (%s); flight tools will retry per call.",
+                _describe_exception(e),
             )
 
     async def stop(self) -> None:
@@ -172,10 +205,12 @@ class KiwiMCPFlightServiceAdapter(FlightServicePort):
         return None
 
     async def _search(self, arguments: dict) -> list[dict]:
-        """One ``search-flight`` call over a short-lived session. ``[]`` on any error.
+        """One ``search-flight`` call over a short-lived session.
 
         Retries once on a transport failure to ride out a transient TLS/connect
-        blip, then degrades to an empty result so the agent falls back to search_web.
+        blip. If both attempts fail, raises ``KiwiTransportError`` — callers
+        decide how to degrade, but the failure is never silently coerced into
+        "Kiwi found nothing".
         """
         async def _one_call():
             async with streamablehttp_client(self.url) as (read, write, _):
@@ -183,23 +218,24 @@ class KiwiMCPFlightServiceAdapter(FlightServicePort):
                     await session.initialize()
                     return await session.call_tool(_KIWI_TOOL, arguments=arguments)
 
-        last_error: Exception | None = None
+        last_error: BaseException | None = None
         for attempt in range(2):
             try:
                 result = await asyncio.wait_for(_one_call(), timeout=_CALL_TIMEOUT_S)
-            except Exception as e:  # noqa: BLE001 - degrade gracefully to search_web
+            except Exception as e:  # noqa: BLE001 - retried once, then raised as KiwiTransportError
                 last_error = e
                 if attempt == 0:
                     await asyncio.sleep(0.5)
                     continue
-                logger.warning("Kiwi search-flight call failed (%s); degrading.", last_error)
-                return []
+                message = _describe_exception(last_error)
+                logger.warning("Kiwi search-flight call failed (%s); degrading.", message)
+                raise KiwiTransportError(message) from last_error
 
             if getattr(result, "isError", False):
                 logger.warning("Kiwi search-flight returned an error: %s", result.content)
-                return []
+                raise KiwiTransportError(str(result.content))
             return _extract_items(result)
-        return []
+        raise KiwiTransportError(_describe_exception(last_error) if last_error else "unknown error")
 
     async def search_flights(
         self,
@@ -263,7 +299,7 @@ class KiwiMCPFlightServiceAdapter(FlightServicePort):
             cursor += timedelta(days=7)
 
         fly_from, fly_to = origin.strip().upper(), destination.strip().upper()
-        sem = asyncio.Semaphore(_DATE_SAMPLES)
+        sem = asyncio.Semaphore(_MAX_CONCURRENT_SEARCHES)
 
         async def probe(dep: date) -> list[dict]:
             arguments = {

@@ -21,7 +21,7 @@ You **MUST** invoke this skill and update the relevant documents in `docs/` when
 3. **Feature Implementation:** Completing any feature or sub-feature described in the PRD or user stories.
 4. **Dependency/Tooling Updates:** Adding, upgrading, or removing backend packages (`pyproject.toml`) or frontend packages (`package.json`).
 
-After updating the Markdown docs, **always check whether the published flow visualization ([docs/index.html](../../../docs/index.html), sourced from [artifacts/kompass-flow.html](../../../artifacts/kompass-flow.html)) also needs to be updated** to reflect the same change (see its entry below).
+After updating the Markdown docs, **always check whether the published flow visualization ([docs/index.html](../../../docs/index.html)) also needs to be updated** to reflect the same change (see its entry below).
 
 ---
 
@@ -50,9 +50,9 @@ Determine which files in `docs/` correspond to your changes:
 * **[evals.md](../../../docs/evals.md)** — the technical reference for the agent-behavior eval suite (`backend/evals/`: schema, fixtures, harness, judge, evaluators, cases, runner, dashboard).
   * *Update when:* Changing the eval suite's architecture (new evaluator, fixture, case category, CLI flag, or file). Keep the file map, evaluator table, and case-category table honest about actual file/class names.
   * Its HTML twin **[evals.html](../../../docs/evals.html)** is different in kind from the other twins: it's a **chronological findings log** (regressions caught, root causes, before/after numbers), appended to whenever an eval run teaches something new — never rewritten after the fact. Append a new timeline entry there when a run surfaces a real finding; only touch `evals.md` for structural/architectural changes to the suite itself.
-* **[index.html](../../../docs/index.html)** — the public homepage: the interactive, click-through flow visualization, served via **GitHub Pages** (`https://m-ali-ml.github.io/kompass/`). Its editable source is [artifacts/kompass-flow.html](../../../artifacts/kompass-flow.html); `docs/index.html` is a published copy of it.
+* **[index.html](../../../docs/index.html)** — the public homepage: the interactive, click-through flow visualization, served directly via **GitHub Pages** (`https://m-ali-ml.github.io/kompass/`). `docs/index.html` is the single source of truth — edit it directly (there is no separate source copy to keep in sync).
   * *Always check whether this needs updating* whenever the changes above touch anything the visualization depicts: the architecture/layers, the request flow (the step-by-step lifecycle), the agent tools (the toolbelt), data sources (MCP servers, grounding, persistence), the generative-UI tool cards, the hexagonal ports/adapters, or the tech stack.
-  * *How to update:* edit the source [artifacts/kompass-flow.html](../../../artifacts/kompass-flow.html) first, then sync the published copy with `cp artifacts/kompass-flow.html docs/index.html` so the two stay identical. Keep its content consistent with `architecture.md`/`.html`, `product.md`/`.html`, and `design.md`/`.html`.
+  * *How to update:* edit [docs/index.html](../../../docs/index.html) directly. Keep its content consistent with `architecture.md`/`.html`, `product.md`/`.html`, and `design.md`/`.html`.
 
 ### 3. Read Existing Post-Docs
 Always read the current content of the target post-doc file using `view_file` to ensure you understand its current structure and do not overwrite or duplicate sections.

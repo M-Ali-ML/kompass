@@ -452,7 +452,7 @@
   </div>
   <div class="notice">
     <span class="ico">🛡️</span>
-    <div><b>The reliability contract.</b> When a source errors or returns nothing — Kiwi unreachable, SerpApi key missing — the tools return <b>no fabricated data</b> (flights: empty list; accommodations: <code>available: false</code>) and the agent falls back to grounded <code>search_web</code>. Prices are never invented.</div>
+    <div><b>The reliability contract.</b> When a source errors or returns nothing — Kiwi unreachable, SerpApi key missing — the tools return <b>no fabricated data</b> (flights: empty list; accommodations: <code>available: false</code>) and the agent falls back to grounded <code>search_web</code>. Prices are never invented. For flights, a transport failure raises <code>KiwiTransportError</code> instead of silently returning an empty list, so <code>search_flights</code>/<code>find_cheapest_dates</code> can tag the fallback with <code>data_source_error: true</code> — a dead connection stays distinguishable from Kiwi genuinely finding zero itineraries.</div>
   </div>
 </section>
 
@@ -739,7 +739,7 @@ render(0);
 const TOOLS = [
   {n:"ask_clarifying_question",i:"❔",bg:"var(--purple)",src:"Frontend HITL",d:"One focused question with option pills + an 'Other' field. Pauses the agent until you answer.",x:"Registered via CopilotKit useHumanInTheLoop — PydanticAI's AG-UI toolset exposes it automatically.",card:"clarify-card"},
   {n:"gather_preferences",i:"🎯",bg:"var(--pink)",src:"Profile",d:"Extracts & layers UserPreferences, then persists them to the global profile for future trips.",x:"Uses merged_with() so conversation prefs layer cleanly over the saved baseline.",card:"preferences-card"},
-  {n:"find_cheapest_dates",i:"📅",bg:"var(--blue)",src:"Kiwi MCP",d:"Samples a month with concurrent ±3-day flex searches, keeping the cheapest fare per departure date.",x:"Bounded by KIWI_DATE_SAMPLES; degrades to an empty result on error (never fabricated).",card:"cheapest-dates-card"},
+  {n:"find_cheapest_dates",i:"📅",bg:"var(--blue)",src:"Kiwi MCP",d:"Samples a month with concurrent ±3-day flex searches, keeping the cheapest fare per departure date.",x:"KIWI_DATE_SAMPLES searches, throttled to KIWI_MAX_CONCURRENT_SEARCHES in flight; a transport failure raises KiwiTransportError (never silently fabricated).",card:"cheapest-dates-card"},
   {n:"search_flights",i:"✈️",bg:"var(--pink)",src:"Kiwi MCP",d:"Live structured fares, currency-aware, honoring direct_flights_only (applied client-side).",x:"One Kiwi search-flight call + client-side max_stops / preferred-time filtering.",card:"flights-card"},
   {n:"search_accommodations",i:"🏨",bg:"var(--purple)",src:"SerpApi MCP",d:"Live Google Hotels — nightly + total rates, ratings, amenities, booking links.",x:"Supports max_price / min_rating; falls back to search_web when available:false.",card:"accommodations-card"},
   {n:"search_web",i:"🔎",bg:"var(--blue)",src:"Gemini grounding",d:"The grounded research sub-agent — destination knowledge and the universal price fallback.",x:"Isolated agent: Gemini won't reliably mix grounding with structured output in one call.",card:"research-card"},

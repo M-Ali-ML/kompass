@@ -143,14 +143,19 @@ async def find_cheapest_dates(
         f"find_cheapest_dates {origin}->{destination} {date_from}..{date_to} "
         f"duration={duration_days} currency={currency}"
     )
-    options = await ctx.deps.flight_service.find_cheapest_dates(
-        origin,
-        destination,
-        date_from=date_from,
-        date_to=date_to,
-        duration_days=duration_days,
-        currency=currency,
-    )
+    try:
+        options = await ctx.deps.flight_service.find_cheapest_dates(
+            origin,
+            destination,
+            date_from=date_from,
+            date_to=date_to,
+            duration_days=duration_days,
+            currency=currency,
+        )
+    except Exception as e:  # noqa: BLE001 - degrade gracefully, but flag it for observability
+        logger.warning(f"find_cheapest_dates data source failed ({e}); degrading to empty.")
+        return {"currency": currency, "estimated": False, "options": [], "data_source_error": True}
+
     estimated = bool(options) and all(o.estimated for o in options)
     return {
         "currency": currency,
@@ -199,15 +204,20 @@ async def search_flights(
         f"search_flights {origin}->{destination} {departure_date} pax={passengers} "
         f"max_stops={max_stops} currency={currency}"
     )
-    options = await ctx.deps.flight_service.search_flights(
-        origin,
-        destination,
-        departure_date,
-        passengers=passengers,
-        max_stops=max_stops,
-        preferred_time=preferred_time,
-        currency=currency,
-    )
+    try:
+        options = await ctx.deps.flight_service.search_flights(
+            origin,
+            destination,
+            departure_date,
+            passengers=passengers,
+            max_stops=max_stops,
+            preferred_time=preferred_time,
+            currency=currency,
+        )
+    except Exception as e:  # noqa: BLE001 - degrade gracefully, but flag it for observability
+        logger.warning(f"search_flights data source failed ({e}); degrading to empty.")
+        return {"currency": currency, "estimated": False, "options": [], "data_source_error": True}
+
     estimated = bool(options) and all(o.estimated for o in options)
     return {
         "currency": currency,

@@ -173,6 +173,14 @@
       </table>
     </div>
 
+    <div class="callout"><b>Reliability contract:</b> a source erroring or returning nothing never fabricates data —
+    flights degrade to an empty option list, accommodations to <code>available: false</code>, and the agent falls
+    back to <code>search_web</code>. For flights specifically, a transport/protocol failure (dead connection,
+    timeout) raises <code>KiwiTransportError</code> in <code>mcp_flight_service.py</code> rather than silently
+    returning <code>[]</code>; the <code>search_flights</code>/<code>find_cheapest_dates</code> tools catch it and
+    add a <code>data_source_error: true</code> flag, so a dead Kiwi connection stays distinguishable from Kiwi
+    genuinely finding zero itineraries for a route.</div>
+
     <div class="grid cols-2">
       <div class="card"><div class="icon i-purple">🧠</div><h3>System prompt</h3>
         <p>Dynamic, but injects only the current <em>date</em> (day granularity) so the KV-cache prefix stays stable.

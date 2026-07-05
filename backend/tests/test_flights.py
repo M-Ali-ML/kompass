@@ -1,7 +1,7 @@
 from datetime import datetime
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from pydantic_ai import RunContext
 
@@ -9,7 +9,12 @@ import app.agent.research_agent as research_mod
 from app.agent.agent import _month_to_range, find_cheapest_dates, search_flights, search_web
 from app.agent.dependency import AgentDependencies
 from app.adapters import mcp_flight_service
-from app.adapters.mcp_flight_service import KiwiMCPFlightServiceAdapter, _extract_items
+from app.adapters.mcp_flight_service import (
+    KiwiMCPFlightServiceAdapter,
+    KiwiTransportError,
+    _describe_exception,
+    _extract_items,
+)
 from app.domain import FlightDateOption, FlightOption, UserPreferences
 from app.ports.flight_service import FlightServicePort
 from app.ports.prompt_service import PromptServicePort
@@ -66,6 +71,93 @@ def test_extract_items_returns_empty_on_error_string():
     # Kiwi surfaces some failures as a plain (non-JSON) message — treat as no data.
     assert _extract_items(_Result(text="Error searching flights: boom")) == []
     assert _extract_items(_Result()) == []
+
+
+# --- Transport-failure vs. genuine-empty distinction ---------------------------
+
+def test_describe_exception_unwraps_exception_groups():
+    group = ExceptionGroup("unhandled errors in a TaskGroup", [ConnectionError("boom")])
+    assert _describe_exception(group) == "ConnectionError: boom"
+
+
+def test_describe_exception_recurses_nested_groups():
+    inner = ExceptionGroup("inner", [TimeoutError("slow")])
+    outer = ExceptionGroup("outer", [inner])
+    assert _describe_exception(outer) == "TimeoutError: slow"
+
+
+def test_describe_exception_plain_exception():
+    assert _describe_exception(ValueError("bad")) == "ValueError: bad"
+
+
+@pytest.mark.asyncio
+async def test_search_raises_transport_error_after_retry_exhausted(monkeypatch):
+    """A connection failure on both attempts must raise KiwiTransportError, not
+    silently degrade to [] — that's what made a dead Kiwi connection look
+    identical to "no flights on this route" (see mcp_flight_service.py docstring).
+    """
+    adapter = KiwiMCPFlightServiceAdapter(url="http://test")
+    monkeypatch.setattr(mcp_flight_service.asyncio, "sleep", AsyncMock())
+
+    async def fake_wait_for(coro, timeout):
+        coro.close()
+        raise ExceptionGroup("unhandled errors in a TaskGroup", [ConnectionError("dead socket")])
+
+    monkeypatch.setattr(mcp_flight_service.asyncio, "wait_for", fake_wait_for)
+
+    with pytest.raises(KiwiTransportError, match="ConnectionError: dead socket"):
+        await adapter._search({"flyFrom": "BER", "flyTo": "ATH"})
+
+
+@pytest.mark.asyncio
+async def test_search_raises_transport_error_on_is_error_result(monkeypatch):
+    adapter = KiwiMCPFlightServiceAdapter(url="http://test")
+
+    async def fake_wait_for(coro, timeout):
+        coro.close()
+        return _Result(text="Error searching flights: rate limited", is_error=True)
+
+    monkeypatch.setattr(mcp_flight_service.asyncio, "wait_for", fake_wait_for)
+
+    with pytest.raises(KiwiTransportError):
+        await adapter._search({"flyFrom": "BER", "flyTo": "ATH"})
+
+
+@pytest.mark.asyncio
+async def test_search_flights_tool_flags_data_source_error(monkeypatch):
+    class FlakyFlightService(FlightServicePort):
+        async def search_flights(self, *args, **kwargs):
+            raise KiwiTransportError("ConnectionError: dead socket")
+
+        async def find_cheapest_dates(self, *args, **kwargs):
+            raise KiwiTransportError("ConnectionError: dead socket")
+
+    deps = AgentDependencies(
+        prompt_service=MagicMock(spec=PromptServicePort),
+        flight_service=FlakyFlightService(),
+    )
+    out = await search_flights(_ctx(deps), "BER", "ATH", "2026-09-10")
+    assert out["options"] == []
+    assert out["estimated"] is False
+    assert out["data_source_error"] is True
+
+
+@pytest.mark.asyncio
+async def test_find_cheapest_dates_tool_flags_data_source_error():
+    class FlakyFlightService(FlightServicePort):
+        async def search_flights(self, *args, **kwargs):
+            raise KiwiTransportError("boom")
+
+        async def find_cheapest_dates(self, *args, **kwargs):
+            raise KiwiTransportError("boom")
+
+    deps = AgentDependencies(
+        prompt_service=MagicMock(spec=PromptServicePort),
+        flight_service=FlakyFlightService(),
+    )
+    out = await find_cheapest_dates(_ctx(deps), "BER", "ATH", "2026-09")
+    assert out["options"] == []
+    assert out["data_source_error"] is True
 
 
 # --- Kiwi adapter: search_flights ---------------------------------------------

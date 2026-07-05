@@ -34,7 +34,14 @@ class FlightServicePort(ABC):
             currency: ISO 4217 currency code for returned prices.
 
         Returns:
-            A list of ranked flight options (cheapest first).
+            A list of ranked flight options (cheapest first). An empty list is a
+            legitimate answer ("no flights found").
+
+        Raises:
+            Implementations may raise on a transport/provider-level failure
+            (as opposed to a confirmed empty result) so callers can tell the
+            two apart instead of both collapsing into "no options". Callers
+            should catch broadly and degrade gracefully.
         """
         ...
 
@@ -60,6 +67,13 @@ class FlightServicePort(ABC):
             currency: ISO 4217 currency code for returned prices.
 
         Returns:
-            A list of date options ranked by price (cheapest first).
+            A list of date options ranked by price (cheapest first). An empty
+            list is a legitimate answer ("no flights found").
+
+        Raises:
+            Implementations may raise on a transport/provider-level failure
+            (as opposed to a confirmed empty result) so callers can tell the
+            two apart instead of both collapsing into "no options". Callers
+            should catch broadly and degrade gracefully.
         """
         ...

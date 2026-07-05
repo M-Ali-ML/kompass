@@ -21,7 +21,7 @@ Kompass is an autonomous travel planning application that automatically optimize
 
 The post-building docs live in `docs/` as a single connected site — an interactive flow demo plus five visual reference pages, all cross-linked with a shared nav — published via GitHub Pages at [m-ali-ml.github.io/kompass](https://m-ali-ml.github.io/kompass/). Each HTML page has a markdown twin with the same content in prose form:
 
-* [🧭 Interactive Flow Visualization](https://m-ali-ml.github.io/kompass/) — the homepage: a piece-by-piece, click-through walkthrough of the whole app (tracked source: [`artifacts/kompass-flow.html`](./artifacts/kompass-flow.html), published copy: [`docs/index.html`](./docs/index.html))
+* [🧭 Interactive Flow Visualization](https://m-ali-ml.github.io/kompass/) — the homepage: a piece-by-piece, click-through walkthrough of the whole app (source: [`docs/index.html`](./docs/index.html))
 * [Architecture & Flow Guide](https://m-ali-ml.github.io/kompass/architecture.html) ([markdown](./docs/architecture.md))
 * [Design & Styling Specs](https://m-ali-ml.github.io/kompass/design.html) ([markdown](./docs/design.md))
 * [Product & Feature Status](https://m-ali-ml.github.io/kompass/product.html) ([markdown](./docs/product.md))
