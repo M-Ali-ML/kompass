@@ -30,12 +30,12 @@
     <a class="brand" href="index.html"><span class="compass">🧭</span> Kompass Docs</a>
     <div class="nav-links">
       <a href="index.html">Overview</a>
-      <a href="index.html#flow">Flow Demo</a>
       <a href="architecture.html">Architecture</a>
+      <a href="evals.html">Evals</a>
       <a href="product.html">Product</a>
       <a href="design.html">Design</a>
       <a href="user-stories.html" class="active">User Stories</a>
-      <a href="evals.html">Evals</a>
+      <a href="index.html#flow">Flow Demo</a>
     </div>
   </div>
 </nav>
@@ -43,14 +43,10 @@
 <div class="wrap">
 
   <header class="hero">
-    <span class="eyebrow">User stories · Phase 10</span>
-    <h1 class="page-title">16 stories, <span class="grad">16 shipped</span></h1>
-    <p class="lead">Every user story from the product specification, in the traveler's own words, with how Kompass
-    actually delivers it today.</p>
-    <div class="hero-chips">
-      <span class="chip"><b>16/16</b> completed</span>
-      <span class="chip"><b>7</b> categories</span>
-    </div>
+    <span class="eyebrow">User stories</span>
+    <h1 class="page-title">Every story, <span class="grad">traced to code</span></h1>
+    <p class="lead">The 16 user stories from the product spec, in the traveler's own words, each paired with the
+    exact tool or component that delivers it — a requirements trace, not a checklist.</p>
   </header>
 
   <!-- A -->
@@ -58,22 +54,22 @@
     <div class="cat-head"><span class="cat-ico icon i-pink" style="margin:0">💰</span><h3>Smart Date, Budget & Accommodation Optimization</h3><span class="count">Stories 1–4</span></div>
 
     <div class="story">
-      <div class="story-head"><span class="story-num">1</span><b>Seasonality</b><span class="pill done">Completed</span></div>
+      <div class="story-head"><span class="story-num">1</span><b>Seasonality</b></div>
       <div class="story-quote">As a flexible traveler, I want the app to identify the main, shoulder, and off-seasons for my destination, so that I can find dates that are less crowded and more budget-friendly.</div>
       <div class="story-notes"><b>How:</b> the system prompt drives seasonality reasoning and the agent verifies crowd/weather peaks via grounded web search, surfacing them as scenario highlights (e.g. "Peak crowd").</div>
     </div>
     <div class="story">
-      <div class="story-head"><span class="story-num">2</span><b>Flight date recommendation</b><span class="pill done">Completed</span></div>
+      <div class="story-head"><span class="story-num">2</span><b>Flight date recommendation</b></div>
       <div class="story-quote">As a budget-conscious traveler, I want to provide a broad timeframe (e.g., 10 to 15 days in September) and have the app recommend the exact best dates to fly based on live prices.</div>
       <div class="story-notes"><b>How:</b> <code>find_cheapest_dates</code> (Kiwi.com MCP) plus the grounded web-search fallback surface cheap date windows, rendered in the cheapest-dates card.</div>
     </div>
     <div class="story">
-      <div class="story-head"><span class="story-num">3</span><b>Comprehensive budgeting</b><span class="pill done">Completed</span></div>
+      <div class="story-head"><span class="story-num">3</span><b>Comprehensive budgeting</b></div>
       <div class="story-quote">As a thorough planner, I want the app to estimate and include accommodation costs alongside transportation costs, so that I can see accurate subtotals and a grand total for my entire trip.</div>
       <div class="story-notes"><b>How:</b> <code>CostBreakdown</code> renders transport/stay subtotals plus a grand total. Both sides are live: flights and ground transport from Kiwi/research, stays from live accommodation searches.</div>
     </div>
     <div class="story">
-      <div class="story-head"><span class="story-num">4</span><b>Hotel availability</b><span class="pill done">Completed · Phase 6</span></div>
+      <div class="story-head"><span class="story-num">4</span><b>Hotel availability</b><span class="tag">Phase 6</span></div>
       <div class="story-quote">As a traveler with specific tastes, I want the app to check availability of my preferred hotels for different date windows, so that I don't book flights for dates when my ideal accommodation is sold out.</div>
       <div class="story-notes"><b>How:</b> <code>search_accommodations</code> (SerpApi Google Hotels) returns live options for the exact stay dates; <code>min_rating</code>/<code>max_price</code> honor taste and budget, feeding the scenario's stay cost.</div>
     </div>
@@ -84,12 +80,12 @@
     <div class="cat-head"><span class="cat-ico icon i-purple" style="margin:0">🚆</span><h3>Intelligent Transportation Logistics</h3><span class="count">Stories 5–6</span></div>
 
     <div class="story">
-      <div class="story-head"><span class="story-num">5</span><b>Travel parameters & filtering</b><span class="pill done">Completed</span></div>
+      <div class="story-head"><span class="story-num">5</span><b>Travel parameters & filtering</b></div>
       <div class="story-quote">As a traveler who values convenience, I want to set parameters for my travel (direct flights only, journey length, morning/night flights), so that I avoid inconvenient routes like flights with three layovers.</div>
       <div class="story-notes"><b>How:</b> preferences are extracted via <code>gather_preferences</code>, collected through the interactive clarifying-question card when ambiguous, and pre-settable in the global settings modal.</div>
     </div>
     <div class="story">
-      <div class="story-head"><span class="story-num">6</span><b>Route syncing & detail</b><span class="pill done">Completed · Phase 7</span></div>
+      <div class="story-head"><span class="story-num">6</span><b>Route syncing & detail</b><span class="tag">Phase 7</span></div>
       <div class="story-quote">As a trip planner, I want the app to automatically synchronize my connecting travel modes and provide specific routing notes ("Fly to Athens and take the first ferry out to Milos"), so that I have a foolproof logistical plan immediately after landing.</div>
       <div class="story-notes"><b>How:</b> <code>search_ground_transport</code> supplies grounded routing for onward hops; the system prompt aligns each departure to the prior arrival plus a realistic transfer buffer, flagging tight and overnight connections in the timeline.</div>
     </div>
@@ -100,12 +96,12 @@
     <div class="cat-head"><span class="cat-ico icon i-blue" style="margin:0">⚖️</span><h3>Scenario Comparison & Scoring</h3><span class="count">Stories 7–8</span></div>
 
     <div class="story">
-      <div class="story-head"><span class="story-num">7</span><b>Comparative layout</b><span class="pill done">Completed · Phase 5</span></div>
+      <div class="story-head"><span class="story-num">7</span><b>Comparative layout</b><span class="tag">Phase 5</span></div>
       <div class="story-quote">As an analytical planner, I want to view multiple travel scenarios side-by-side in a comparative table, so that I can easily weigh the differences in cost, travel flow, and duration.</div>
       <div class="story-notes"><b>How:</b> <code>generate_scenarios</code> returns 2–3 scenarios rendered side-by-side with cost breakdowns, stress gauges, and best-value / lowest-stress badges.</div>
     </div>
     <div class="story">
-      <div class="story-head"><span class="story-num">8</span><b>Stress scoring</b><span class="pill done">Completed</span></div>
+      <div class="story-head"><span class="story-num">8</span><b>Stress scoring</b></div>
       <div class="story-quote">As a traveler who balances budget with comfort, I want the app to calculate an "overall stress level" for each itinerary, taking into account flight times and difficult connections (like overnight ferries), so that I can make a holistic decision.</div>
       <div class="story-notes"><b>How:</b> a 1–5 <code>stress_score</code> <span class="stress-pips"><i class="on-1"></i><i class="on-2"></i><i></i><i></i><i></i></span> backed by structured stress factors, with scoring heuristics in the system prompt.</div>
     </div>
@@ -116,12 +112,12 @@
     <div class="cat-head"><span class="cat-ico icon i-green" style="margin:0">🧭</span><h3>Activity & Destination Discovery</h3><span class="count">Stories 9–10</span></div>
 
     <div class="story">
-      <div class="story-head"><span class="story-num">9</span><b>Vibe questionnaire</b><span class="pill done">Completed</span></div>
+      <div class="story-head"><span class="story-num">9</span><b>Vibe questionnaire</b></div>
       <div class="story-quote">As an explorer unfamiliar with a new location, I want the app to ask me questions to determine the "vibe" I am looking for, so that it can provide tailored recommendations.</div>
       <div class="story-notes"><b>How:</b> the human-in-the-loop clarifying card asks focused questions — concrete option pills plus a free-text "Other" — and the answers become persisted vibe tags.</div>
     </div>
     <div class="story">
-      <div class="story-head"><span class="story-num">10</span><b>Manual overrides</b><span class="pill done">Completed · Phase 10</span></div>
+      <div class="story-head"><span class="story-num">10</span><b>Manual overrides</b><span class="tag">Phase 10</span></div>
       <div class="story-quote">As an independent traveler, I want the ability to manually override suggestions or tell the app exactly what I plan to do, so that it focuses on logistical heavy-lifting rather than spoon-feeding me sightseeing.</div>
       <div class="story-notes"><b>How:</b> system-prompt directive 9: "I already have flights, just plan ground transport" → the agent skips that data tool, zeroes its cost, and plans only the rest, honoring hard constraints.</div>
     </div>
@@ -132,12 +128,12 @@
     <div class="cat-head"><span class="cat-ico icon i-pink" style="margin:0">🖥️</span><h3>User Interface & Output Formats</h3><span class="count">Stories 11–12</span></div>
 
     <div class="story">
-      <div class="story-head"><span class="story-num">11</span><b>Visual summary</b><span class="pill done">Completed</span></div>
+      <div class="story-head"><span class="story-num">11</span><b>Visual summary</b></div>
       <div class="story-quote">As a user reviewing my trip, I want to see a high-level visual summary of the itinerary, so that I can quickly grasp the overall flow of my travel.</div>
       <div class="story-notes"><b>How:</b> scenario cards give price/stress/legs at a glance; the detail modal adds a travel timeline and day-by-day plan; the interactive map plots the route with mode-colored legs and stop/stay markers.</div>
     </div>
     <div class="story">
-      <div class="story-head"><span class="story-num">12</span><b>Tabular breakdowns</b><span class="pill done">Completed</span></div>
+      <div class="story-head"><span class="story-num">12</span><b>Tabular breakdowns</b></div>
       <div class="story-quote">As a detail-oriented planner, I want the option to view detailed text and tabular breakdowns of my itinerary, so that I can thoroughly understand the specific logistical details.</div>
       <div class="story-notes"><b>How:</b> the "View details" modal shows itemized costs, stress factors, a per-direction timeline with connection chips and booking links, an accommodation list, and an expandable time-blocked day-by-day itinerary.</div>
     </div>
@@ -148,17 +144,17 @@
     <div class="cat-head"><span class="cat-ico icon i-purple" style="margin:0">🧠</span><h3>Session Management & Memory</h3><span class="count">Stories 13–15</span></div>
 
     <div class="story">
-      <div class="story-head"><span class="story-num">13</span><b>Iterative feedback</b><span class="pill done">Completed</span></div>
+      <div class="story-head"><span class="story-num">13</span><b>Iterative feedback</b></div>
       <div class="story-quote">As an iterative planner, I want to provide feedback on the generated itinerary and have the app regenerate the response, so that I am not forced to rely on a single, perfect initial output.</div>
       <div class="story-notes"><b>How:</b> native to the chat loop; Phase 10 adds targeted refinement — "make Scenario B direct-only" regenerates just that scenario, carrying the others over unchanged.</div>
     </div>
     <div class="story">
-      <div class="story-head"><span class="story-num">14</span><b>Session persistence</b><span class="pill done">Completed · Phase 3</span></div>
+      <div class="story-head"><span class="story-num">14</span><b>Session persistence</b><span class="tag">Phase 3</span></div>
       <div class="story-quote">As a busy user, I want the app to save my specific trip conversations, so that I can leave the app and return another day to pick up exactly where I left off.</div>
       <div class="story-notes"><b>How:</b> trips persist to SQLite with the full AG-UI message history (tool calls included), so every generative-UI card rehydrates on resume from the sidebar.</div>
     </div>
     <div class="story">
-      <div class="story-head"><span class="story-num">15</span><b>Global profile persistence</b><span class="pill done">Completed · Phase 3+10</span></div>
+      <div class="story-head"><span class="story-num">15</span><b>Global profile persistence</b><span class="tag">Phase 3+10</span></div>
       <div class="story-quote">As a frequent user, I want the app to remember my baseline likes and dislikes globally, so that when I start a new trip conversation, it automatically applies my previous preferences.</div>
       <div class="story-notes"><b>How:</b> a singleton profile loads as the baseline each run and merges conversation preferences on top; the settings modal edits it directly.</div>
     </div>
@@ -169,7 +165,7 @@
     <div class="cat-head"><span class="cat-ico icon i-blue" style="margin:0">🤖</span><h3>Autonomy & Manual Labor Reduction</h3><span class="count">Story 16</span></div>
 
     <div class="story">
-      <div class="story-head"><span class="story-num">16</span><b>Autonomous draft itinerary</b><span class="pill done">Completed</span></div>
+      <div class="story-head"><span class="story-num">16</span><b>Autonomous draft itinerary</b></div>
       <div class="story-quote">As a traveler overwhelmed by manual planning, I want the app to act with a high degree of autonomy (8–9 out of 10) to generate a complete draft itinerary from a high-level prompt, so that I am saved the manual labor of cross-referencing multiple booking sites.</div>
       <div class="story-notes"><b>How:</b> the agent plans end-to-end from one prompt — dates, flights, stays, ground transport, day-by-day plans — asking at most a few focused clarifying questions along the way.</div>
     </div>

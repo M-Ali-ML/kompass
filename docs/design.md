@@ -21,12 +21,12 @@ The application uses the custom **"Candy" Theme** (a bold, fun, energetic "Joyfu
 
 | Attribute | Blueprint Target | Currently Implemented | Status |
 | :--- | :--- | :--- | :--- |
-| **Theme / Vibe** | "Joyful Pop" | "Joyful Pop" | 🟢 Completed |
-| **Color Palette** | Hot Pink, Purple, Sky Blue | Primary `#e040a0`, Secondary `#7c52aa`, Accent `#0096cc` | 🟢 Completed |
-| **Typography** | DM Sans | DM Sans (imported via Google Fonts) | 🟢 Completed |
-| **Corner Radius** | 16px-20px cards, pill-shaped tags | 16px card panels, full rounded tags | 🟢 Completed |
-| **Animations** | Bouncy scale-up spring hover | `.bouncy-hover` scale transition | 🟢 Completed |
-| **Shadows** | Tinted color shadows | Pink, purple, and blue shadows at 20-35% opacity | 🟢 Completed |
+| **Theme / Vibe** | "Joyful Pop" | "Joyful Pop" | Completed |
+| **Color Palette** | Hot Pink, Purple, Sky Blue | Primary `#e040a0`, Secondary `#7c52aa`, Accent `#0096cc` | Completed |
+| **Typography** | DM Sans | DM Sans (imported via Google Fonts) | Completed |
+| **Corner Radius** | 16px-20px cards, pill-shaped tags | 16px card panels, full rounded tags | Completed |
+| **Animations** | Bouncy scale-up spring hover | `.bouncy-hover` scale transition | Completed |
+| **Shadows** | Tinted color shadows | Pink, purple, and blue shadows at 20-35% opacity | Completed |
 
 ---
 

@@ -226,7 +226,7 @@ Every JSON report records both `model` and `judge_model` for reproducibility.
 
 ---
 
-## 7. A senior design decision worth calling out: don't eval the model on arithmetic
+## 7. A design decision worth calling out: don't eval the model on arithmetic
 
 `InternalConsistency` checks that the model's own line items (`Leg.cost`,
 `Accommodation.cost`) sum to the subtotals it reports. During the Phase 2

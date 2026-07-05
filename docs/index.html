@@ -291,8 +291,6 @@
     <span class="chip">⚡ <b>FastAPI</b> + PydanticAI</span>
     <span class="chip">🤖 Gemini 2.5 Flash</span>
     <span class="chip">🔌 <b>AG-UI</b> over SSE</span>
-    <span class="chip">🎨 Next.js 16 + <b>CopilotKit</b></span>
-    <span class="chip">🗺️ <b>Google Maps</b> route plotting</span>
   </div>
   <div class="scroll-cue">▾ explore the system</div>
 </header>
@@ -300,10 +298,10 @@
 <!-- QUICK STATS -->
 <section class="wrap" id="numbers" style="padding-top:0;padding-bottom:0">
   <div class="stats">
-    <div class="stat"><div class="num">10/10</div><div class="lbl">Phases shipped</div></div>
     <div class="stat"><div class="num">9</div><div class="lbl">Agent tools</div></div>
-    <div class="stat"><div class="num">8+1</div><div class="lbl">Cards + HITL</div></div>
-    <div class="stat"><div class="num">16</div><div class="lbl">User stories done</div></div>
+    <div class="stat"><div class="num">8</div><div class="lbl">Ports & adapters</div></div>
+    <div class="stat"><div class="num">30</div><div class="lbl">Eval cases</div></div>
+    <div class="stat"><div class="num">10</div><div class="lbl">Evaluators</div></div>
   </div>
 </section>
 
@@ -311,7 +309,7 @@
 <section class="wrap" id="docs">
   <span class="eyebrow">00 — Prefer to read?</span>
   <h2>The full written docs</h2>
-  <p class="lead">Everything this page shows interactively is also written up as reference pages — the feature tracker, the design system, and the full user-story matrix.</p>
+  <p class="lead">Reference pages for anyone who wants the details instead of the demo — start with how it's built and how it's measured.</p>
   <div class="grid g-src">
     <a class="src-card doc-link" href="architecture.html">
       <span class="badge" style="background:var(--purple-soft);color:var(--purple)">Reference</span>
@@ -319,29 +317,29 @@
       <p>Hexagonal backend, agent tools, MCP integrations, persistence, and the frontend component map.</p>
       <div class="go">Explore the system →</div>
     </a>
+    <a class="src-card doc-link" href="evals.html">
+      <span class="badge" style="background:var(--amber-soft);color:var(--amber)">Reference</span>
+      <h4>🧪 Eval Learnings Log</h4>
+      <p>What running a real LLM eval suite found — regressions caught, root causes, and fixes, updated live.</p>
+      <div class="go">Read the log →</div>
+    </a>
     <a class="src-card doc-link" href="product.html">
       <span class="badge" style="background:var(--pink-soft);color:var(--pink)">Reference</span>
       <h4>🚀 Product</h4>
-      <p>Every shipped feature across 8 categories, with the phase that delivered it.</p>
+      <p>Every feature across 8 categories, with the phase that delivered it.</p>
       <div class="go">See the feature tracker →</div>
     </a>
     <a class="src-card doc-link" href="design.html">
       <span class="badge" style="background:var(--blue-soft);color:var(--blue)">Reference</span>
       <h4>🎨 Design</h4>
-      <p>The Candy theme: live color swatches, typography, motion, and UI component status.</p>
+      <p>The Candy theme: color palette, typography, motion, and the UI component map.</p>
       <div class="go">Browse the design system →</div>
     </a>
     <a class="src-card doc-link" href="user-stories.html">
       <span class="badge" style="background:#dcf7ea;color:var(--green)">Reference</span>
       <h4>✅ User Stories</h4>
-      <p>All 16 stories from the product spec, each with its status and how it shipped.</p>
+      <p>All 16 stories from the product spec, traced to the tool or component that delivers each one.</p>
       <div class="go">Check the story matrix →</div>
-    </a>
-    <a class="src-card doc-link" href="evals.html">
-      <span class="badge" style="background:var(--amber-soft);color:var(--amber)">Reference</span>
-      <h4>🧪 Eval Learnings Log</h4>
-      <p>What running a real LLM eval suite actually found — regressions caught, root causes, and fixes, updated live.</p>
-      <div class="go">Read the log →</div>
     </a>
   </div>
 </section>
@@ -546,7 +544,7 @@
 </section>
 
 <footer>
-  Built from the Kompass post-build docs · <code>docs/architecture.md</code> · <code>docs/product.md</code> · <code>docs/design.md</code><br/>
+  Built from the Kompass post-build docs · <code>docs/architecture.md</code> · <code>docs/evals.md</code> · <code>docs/product.md</code> · <code>docs/design.md</code><br/>
   An interactive HTML artifact — open it, share it, explore the flow.
 </footer>
 
