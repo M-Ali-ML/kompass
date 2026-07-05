@@ -145,7 +145,7 @@ LLM-as-judge):
 # Full eval run against the model configured in backend/.env
 cd backend && uv run python -m evals.run
 
-# Live dashboard reading artifacts/eval_report_*.json (auto-refreshes)
+# Live dashboard reading artifacts/eval_report/eval_report_*.json (auto-refreshes)
 cd backend && uv run python -m evals.dashboard   # → http://localhost:8420
 ```
 

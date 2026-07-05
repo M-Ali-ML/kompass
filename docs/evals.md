@@ -68,7 +68,7 @@ flowchart TD
     C -.metadata contract.-> EV
     EV -->|named boolean assertions| REP["pydantic-evals EvaluationReport"]
     REP --> RUN["evals/run.py<br/>per-category / per-assertion rates<br/>+ flaky-case detection"]
-    RUN --> JSON["artifacts/eval_report_&lt;ts&gt;.json"]
+    RUN --> JSON["artifacts/eval_report/eval_report_&lt;ts&gt;.json"]
     JSON --> DASH["evals/dashboard.py<br/>live web UI :8420"]
 ```
 
@@ -284,7 +284,8 @@ per-assertion pass rates, a **cases needing attention** list (failed
 assertions and/or errored runs), and — when `--repeat > 1` — a **flaky
 across repeats** section that collapses re-runs of the same case and flags
 any assertion that didn't pass consistently. It then writes
-`artifacts/eval_report_<ts>.json` (including `model` and `judge_model`).
+`artifacts/eval_report/eval_report_<ts>.json` (including `model` and
+`judge_model`).
 
 > **Cost/keys.** Real runs call Gemini and spend tokens (`GOOGLE_API_KEY`
 > required). The data layer is faked, so no paid flight/hotel API calls are
@@ -297,7 +298,7 @@ uv run python -m evals.dashboard        # → http://localhost:8420
 ```
 
 A stdlib-only web server (no frontend toolchain, no deps) that reads
-`artifacts/eval_report_*.json` **live** and auto-refreshes every 3s: overall
+`artifacts/eval_report/eval_report_*.json` **live** and auto-refreshes every 3s: overall
 pass-rate trend across runs, per-category and per-assertion bars, a per-case
 assertion table (errored cases flagged), and a run picker. It re-reads the
 folder on every poll, so new runs appear on their own.

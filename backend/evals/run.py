@@ -12,8 +12,8 @@ Model selection (CLI flag > env var > default):
   * LLM judge:        --judge-model > EVAL_JUDGE_MODEL > gemini-2.5-flash-lite
 Env vars can be set in the shell or backend/.env (loaded via app.config.Settings).
 
-Writes a JSON summary to artifacts/eval_report_<timestamp>.json and prints the
-pydantic-evals table plus a per-category assertion pass-rate breakdown.
+Writes a JSON summary to artifacts/eval_report/eval_report_<timestamp>.json and
+prints the pydantic-evals table plus a per-category assertion pass-rate breakdown.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ from evals.cases import build_dataset
 from evals.schema import CaseMeta
 from evals.tasks import make_task
 
-_ARTIFACTS = Path(__file__).resolve().parents[2] / "artifacts"
+_ARTIFACTS = Path(__file__).resolve().parents[2] / "artifacts" / "eval_report"
 
 
 def _assertion_value(result: Any) -> bool | None:

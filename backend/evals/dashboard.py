@@ -2,7 +2,7 @@
 
 A stdlib-only web server (no extra deps) that reads the JSON reports written by
 `evals/run.py` and serves one self-contained page that auto-refreshes. It
-re-reads `artifacts/` on every poll, so new runs appear on their own.
+re-reads `artifacts/eval_report/` on every poll, so new runs appear on their own.
 
     cd backend && uv run python -m evals.dashboard      # http://localhost:8420
     uv run python -m evals.dashboard --port 9000
@@ -19,7 +19,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-_ARTIFACTS = Path(__file__).resolve().parents[2] / "artifacts"
+_ARTIFACTS = Path(__file__).resolve().parents[2] / "artifacts" / "eval_report"
 
 PAGE = """<!doctype html>
 <html lang="en">
@@ -292,7 +292,7 @@ def main() -> None:
     url = f"http://{args.host}:{args.port}"
     n = len(_load_reports())
     print(f"Kompass eval dashboard → {url}  ({n} report(s) in {_ARTIFACTS})")
-    print("Reading artifacts/eval_report_*.json — new runs appear automatically. Ctrl-C to stop.")
+    print("Reading artifacts/eval_report/eval_report_*.json — new runs appear automatically. Ctrl-C to stop.")
     if not args.no_open:
         try:
             webbrowser.open(url)
