@@ -46,6 +46,14 @@ class CaseInputs(BaseModel):
     # same agent + fakes; evaluators score the FINAL turn's trace.
     followups: list[str] = Field(default_factory=list)
 
+    # Auto-populated by build_dataset() from the Case's own `name`/`metadata.
+    # category` — pydantic-evals' task callable only receives `CaseInputs`, not
+    # the surrounding `Case`, so this is how the eval Langfuse tracing
+    # (evals/tasks.py) recovers "which case is this?" to tag/name the trace.
+    # Not meant to be set by hand in cases.py.
+    case_name: str = ""
+    case_category: str = ""
+
 
 class CaseMeta(BaseModel):
     """Expected-behavior contract for a case. Every field is optional; an

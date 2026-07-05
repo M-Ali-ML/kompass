@@ -195,7 +195,12 @@ class PlanQuality(Evaluator):
     def evaluate(self, ctx: EvalCtx) -> dict[str, bool]:
         meta, out = ctx.metadata, ctx.output
         scenarios = out.scenarios
-        res: dict[str, bool] = {"produced_a_plan": bool(scenarios)}
+        res: dict[str, bool] = {}
+        # An infeasible-budget case rewards honest refusal (see
+        # ConstraintAdherence.no_overbudget_plan) — an empty result there is
+        # CORRECT behavior, so don't penalize it with a blanket "no plan" fail.
+        if not meta.budget_infeasible:
+            res["produced_a_plan"] = bool(scenarios)
 
         if meta.min_scenarios is not None:
             res["scenario_count_met"] = len(scenarios) >= meta.min_scenarios

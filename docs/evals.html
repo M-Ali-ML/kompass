@@ -42,7 +42,7 @@
     <div class="stats">
       <div class="stat"><div class="num">30</div><div class="lbl">Golden cases</div></div>
       <div class="stat"><div class="num">7</div><div class="lbl">Categories · 10 evaluators</div></div>
-      <div class="stat"><div class="num">2</div><div class="lbl">Real regressions caught</div></div>
+      <div class="stat"><div class="num">3</div><div class="lbl">Real regressions caught</div></div>
       <div class="stat"><div class="num">100%</div><div class="lbl">Executed assertions, latest clean run</div></div>
     </div>
   </section>
@@ -184,6 +184,53 @@
         (CLI flag → env var → default) via <code>EVAL_MODEL</code> / <code>EVAL_JUDGE_MODEL</code> in
         <code>backend/.env</code>, and every JSON report now records exactly which model played which role for
         full reproducibility.</p>
+      </div>
+
+      <div class="t-item">
+        <span class="pill done">Fixed · 2026-07-05</span>
+        <b>Three fix-verify loops off one full run: an evaluator false-negative, an ambiguous prompt, and a real fabrication bug</b>
+        <p><b>1) False-negative in the harness itself:</b> <code>infeasible_budget_no_fabrication</code> failed
+        <code>produced_a_plan</code> for correctly <em>refusing</em> to invent a plan for an impossible budget —
+        the evaluator, not the agent, was wrong. Fixed by skipping that assertion when
+        <code>CaseMeta.budget_infeasible</code> is set. <b>2) Ambiguous case wording:</b>
+        <code>multi_city_rail_europe</code> said Prague→Vienna must be "BY TRAIN" but left the Berlin legs
+        unspecified — the model reasonably flew them, failing <code>ground_legs_present</code>. Reworded to
+        "no flights at all, including the way back" and added explicit <code>forbidden_tools</code>.
+        <b>3) The real one:</b> <code>group_of_six_propagation</code> — phrasing the travelers as "a group of
+        friends" instead of "6 people" made the agent skip <code>search_flights</code>/<code>search_accommodations</code>
+        entirely and hand-wave numbers straight into <code>generate_scenarios</code>. Casual framing was being read
+        as license to skip the tools. Fixed with a new system-prompt directive: informal phrasing describes the
+        travelers, never a license to fabricate prices.</p>
+        <div class="bar green"><span style="width:100%"></span></div>
+        <p style="margin-top:4px;font-size:13px">All three cases: <b>3/3</b> repeats clean after their fix; the
+        full 30-case suite re-run confirmed no regressions.</p>
+        <div class="callout"><b>Also surfaced, still open:</b> <code>already_have_flights_zero_transport</code>
+        reproducibly hits <code>504 DEADLINE_EXCEEDED</code> even run in isolation with extended timeouts — a
+        Google-side infra issue pydantic-ai's retry logic doesn't currently absorb. The output-retry-exhaustion
+        issue above has now also been seen on <code>refine_change_party_size</code> and
+        <code>empty_route_falls_back_and_flags_estimated</code> — logged as open rather than quietly ignored.</div>
+      </div>
+
+      <div class="t-item">
+        <span class="pill info">Shipped · 2026-07-05</span>
+        <b>Langfuse wired into the eval suite — eval traces now tell themselves apart from live traffic</b>
+        <p>Every case run now flows through the same Langfuse/OpenTelemetry pipeline as production
+        (<code>app/telemetry.py</code>), tagged <code>environment="eval"</code>, <code>session_id=&lt;run
+        timestamp&gt;</code> (groups every case + repeat of one <code>evals.run</code> invocation into one Langfuse
+        session), <code>trace_name=&lt;case name&gt;</code>, and <code>tags=["kompass-eval", &lt;category&gt;]</code>.
+        Production traces got the mirror-image <code>environment="production"</code> so the two populations never
+        mix in a shared Langfuse project.</p>
+        <p style="margin-top:10px"><b>Verified live, not just wired:</b> ran
+        <code>evals.run --case group_of_six_propagation</code> and queried the Langfuse API directly — the trace
+        landed with <code>environment=eval</code>, <code>traceName=group_of_six_propagation</code>,
+        <code>sessionId</code> matching the run's timestamp, and <code>eval_category</code>/<code>eval_repeat</code>
+        metadata on every span, alongside the full token/cost/tool-call detail pydantic-ai already emits.</p>
+        <div class="callout"><b>Why it matters:</b> every case in the entry above was root-caused with a throwaway
+        <code>_debug_case.py</code> script and raw stdout. Next time, it's a Langfuse query — filter
+        <code>environment = eval</code>, <code>traceName = &lt;case&gt;</code> — and see the model's exact
+        reasoning and tool-call arguments for every attempt, with zero one-off scripts and zero noise in
+        production dashboards. See <a href="evals.md#10-langfuse-observability-telling-eval-traces-from-live-traffic">evals.md §10</a>
+        for the mechanics.</div>
       </div>
 
     </div>

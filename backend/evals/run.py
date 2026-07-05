@@ -29,6 +29,7 @@ from typing import Any
 from pydantic_evals import Dataset
 
 from app.config import settings
+from app.telemetry import flush_telemetry, init_telemetry
 
 from evals.cases import build_dataset
 from evals.schema import CaseMeta
@@ -170,6 +171,14 @@ def _print_summary(agg: dict[str, Any]) -> None:
 
 
 async def _amain(args: argparse.Namespace) -> None:
+    # Generated once, up front, so it can double as both the Langfuse session_id
+    # grouping every case in this run and the report filename's timestamp —
+    # one run, one id, no need to correlate a report back to its traces by wall
+    # clock. init_telemetry() is a no-op (and logs why) when Langfuse keys
+    # aren't configured, so this is safe unconfigured.
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    init_telemetry()
+
     dataset: Dataset = build_dataset()
     if args.case:
         dataset = Dataset(
@@ -183,14 +192,21 @@ async def _amain(args: argparse.Namespace) -> None:
     model = args.model or settings.eval_model
     if args.judge_model:
         settings.eval_judge_model = args.judge_model
-    task = make_task(model)
+    task = make_task(model, run_id=run_id)
 
-    report = await dataset.evaluate(
-        task,
-        max_concurrency=args.concurrency,
-        repeat=args.repeat,
-        progress=True,
-    )
+    try:
+        report = await dataset.evaluate(
+            task,
+            max_concurrency=args.concurrency,
+            repeat=args.repeat,
+            progress=True,
+        )
+    finally:
+        # This is a short-lived CLI process, not a long-running server — the
+        # Langfuse OTel exporter batches spans, so without an explicit flush
+        # here the traces from a quick `--case` run may never reach Langfuse
+        # before the process exits. Flush even if evaluate() raised.
+        flush_telemetry()
 
     report.print(include_input=False, include_output=False, include_durations=True)
 
@@ -198,7 +214,7 @@ async def _amain(args: argparse.Namespace) -> None:
     _print_summary(agg)
 
     _ARTIFACTS.mkdir(exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = run_id
     out_path = _ARTIFACTS / f"eval_report_{stamp}.json"
     out_path.write_text(
         json.dumps(
