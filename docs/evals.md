@@ -70,6 +70,7 @@ flowchart TD
     REP --> RUN["evals/run.py<br/>per-category / per-assertion rates<br/>+ flaky-case detection"]
     RUN --> JSON["artifacts/eval_report/eval_report_&lt;ts&gt;.json"]
     JSON --> DASH["evals/dashboard.py<br/>live web UI :8420"]
+    REP -.when Langfuse on.-> LF["evals/langfuse_dataset.py<br/>dataset run: experiment items + scores"]
 ```
 
 **File map** (`backend/evals/`):
@@ -83,8 +84,9 @@ flowchart TD
 | `judge.py` | The LLM-as-judge: a small structured-output agent (`Verdict{passed, reason}`) scoring soft criteria, decoupled from the agent-under-test's model. |
 | `evaluators.py` | Ten evaluators (7 deterministic + 3 judge-backed) that turn a `RunTrace` + `CaseMeta` into named pass/fail assertions. |
 | `cases.py` | The 30-case golden `Dataset` (Cases defined in Python). |
-| `tasks.py` | The pydantic-evals task: `CaseInputs → RunTrace`, dispatching to `run_case` or `run_conversation` (with optional model override); wraps each call in `app.telemetry.trace_attributes(environment="eval", ...)` (see §10). |
-| `run.py` | CLI runner: executes the dataset, prints/aggregates (incl. per-case flakiness across `--repeat`), writes the JSON report; calls `init_telemetry()`/`flush_telemetry()` around the run. |
+| `tasks.py` | The pydantic-evals task: `CaseInputs → RunTrace`, dispatching to `run_case` or `run_conversation` (with optional model override); wraps each call in `app.telemetry.trace_attributes(...)` and (when Langfuse is on) a per-case span whose trace id is stamped onto the `ReportCase`. When publishing a dataset run it also links the trace as a Langfuse **experiment item** (`create_run_item` + `experiment_context`) so it shows in the Experiments tab (see §10.1). |
+| `langfuse_dataset.py` | Mirrors the golden set into a Langfuse **dataset** and publishes each run as a **dataset run / experiment** — `sync_cases()` (items) + `create_run_item()`/`experiment_context()` (per-case experiment items) + `publish_report()` (per-assertion & run-level scores) (see §10.1). No-op when Langfuse is unconfigured. |
+| `run.py` | CLI runner: executes the dataset, prints/aggregates (incl. per-case flakiness across `--repeat`), writes the JSON report; calls `init_telemetry()`/`flush_telemetry()` around the run and (unless `--no-langfuse-dataset`) syncs + publishes the Langfuse dataset run. |
 | `dashboard.py` | Stdlib web UI that reads the report folder live. |
 
 ---
@@ -268,6 +270,7 @@ uv run python -m evals.run --judge-model google:gemini-2.5-flash-lite
 uv run python -m evals.run --case greek_island_hop_single_plan
 uv run python -m evals.run --repeat 3
 uv run python -m evals.run --concurrency 4
+uv run python -m evals.run --no-langfuse-dataset   # skip the Langfuse dataset run (§10.1)
 ```
 
 > **Concurrency vs. quota.** High `--concurrency` × `--repeat` can trip Gemini
@@ -371,7 +374,7 @@ except for the attributes that mark which is which:
 
 | Attribute | Production (`app/api/routes.py`) | Eval (`evals/tasks.py`) |
 | --- | --- | --- |
-| `environment` | `"production"` | `"eval"` |
+| `environment` | `"production"` | `"sdk-experiment"` when the run is published as a Langfuse dataset run (the default — makes each case an *experiment item*, see §10.1); `"eval"` with `--no-langfuse-dataset` or for judge traces |
 | `session_id` | the trip's thread id (groups a conversation's turns) | the eval run's timestamp (groups every case + repeat in one `evals.run` invocation) |
 | `trace_name` | (unset — defaults to the agent/operation name) | the case name (e.g. `group_of_six_propagation`) |
 | `tags` | `["kompass-agent"]` | `["kompass-eval", <category>]` |
@@ -388,6 +391,15 @@ wraps each case's `run_case`/`run_conversation` call in
 exporter flushes). All of this is a no-op — zero overhead, no branching needed
 at call sites — when `LANGFUSE_*` keys aren't configured.
 
+The **LLM-as-judge** (`judge.py`) is a third trace population to keep tidy: it
+runs *inside evaluators*, which pydantic-evals executes after the task and
+outside the per-case trace context — so without care its calls would land as
+untagged `agent run` traces in Langfuse's `default` environment. `judge.py`
+therefore wraps its own run in `trace_attributes(environment="eval",
+trace_name="judge", tags=["kompass-eval", "judge"])`, so judge calls stay
+filterable as eval-suite noise and out of both production dashboards and the
+`default` bucket.
+
 **Why this matters for debugging**: every case in this doc's Phase 3 findings
 (§9) — the "friends"-triggered fabrication, the `already_have_flights` 504s,
 the output-retry exhaustion — was root-caused by re-running the case headless
@@ -399,13 +411,61 @@ arguments — no custom debug scripts needed. Filtering `environment =
 production` excludes all of this eval noise from real-traffic dashboards, and
 vice versa.
 
-This is distinct from the roadmap's optional item 3.5 (Langfuse **dataset**
-runs — Langfuse's structured "run this dataset, get a scored table" feature):
-what's described here is trace-level tagging for ad-hoc debugging, verified
-working end-to-end (a live `evals.run --case` invocation was confirmed to land
-in Langfuse with the correct `environment`/`session_id`/`tags`/`metadata` via
-the Langfuse API). Publishing to Langfuse's Datasets product for
-version-over-version score history is still open.
+The trace tagging above is for **ad-hoc debugging** (filter/inspect individual
+runs). Structured, version-over-version score history is a separate Langfuse
+feature — dataset runs — covered next.
+
+### 10.1 Langfuse dataset runs (score history across versions)
+
+Roadmap item 3.5, done (2026-07-05). Trace tagging answers "let me look at this
+one run"; **dataset runs** answer "how did case *X* — or category *Y* — score
+across every run and prompt/model version?" Langfuse's Datasets product renders
+exactly that: a dataset of items, one **run** per `evals.run` invocation, and a
+comparison view that charts and diffs scores run-over-run.
+
+We keep **pydantic-evals as the source of truth** and mirror into Langfuse after
+the fact rather than re-implementing scoring on Langfuse's runner (which would
+double the model spend). [`evals/langfuse_dataset.py`](../backend/evals/langfuse_dataset.py)
+does the mirroring:
+
+- **`sync_cases()`** (before the run) upserts every golden case as a Langfuse
+  dataset item under `kompass-golden`, keyed by a stable id
+  (`kompass-golden::<case_name>`) so runs always target the same items.
+- **`create_run_item()` + `experiment_context()`** (during the run, from
+  [`evals/tasks.py`](../backend/evals/tasks.py)) turn each case's own agent trace
+  into a first-class **experiment item**.
+- **`publish_report()`** (after the run) walks the finished `EvaluationReport`
+  and attaches scores: one **BOOLEAN** score per assertion on each case's trace,
+  plus the per-category and overall pass rates the CLI prints as **NUMERIC**
+  run-level scores — so the run's headline numbers are chartable in the UI.
+
+**The Experiments-tab gotcha (and the fix).** A dataset run created only by the
+low-level "link a trace to a run" call (`api.dataset_run_items.create`) is
+visible via the API and older run views, but stays **invisible in the dataset's
+Experiments tab** — that tab only surfaces traces that the SDK's own
+`run_experiment()` marks as experiment items: `environment = "sdk-experiment"`
+plus a set of `langfuse.experiment.*` span attributes (id / name / dataset /
+item). So `experiment_context()` replicates exactly that on each case's span
+(flipping the environment and propagating the experiment identity to the agent's
+child spans via the SDK's own propagation helper), while `create_run_item()`
+does the run-item link — the two together are what `run_experiment()` does
+internally, minus re-executing the agent. Scores are written with the same
+`sdk-experiment` environment so the tab's score columns line up with the run.
+
+The per-row linking: pydantic-evals owns the execution loop, so `tasks.py` stamps
+each case's trace id onto the `ReportCase` via
+`pydantic_evals.set_eval_attribute("langfuse_trace_id", ...)`. That gives
+`publish_report()` an **exact, per-row** trace to attach scores to (failed cases,
+which lose their attributes, fall back to a per-run trace registry). It's on by
+default whenever Langfuse keys are set, and skippable with
+`--no-langfuse-dataset`; entirely a no-op otherwise.
+
+Verified live end-to-end via the Langfuse API: after a run each case's trace
+lands in the `sdk-experiment` environment with a linked dataset-run item, its
+assertion scores and the run-level `overall_pass_rate` / `category:*` scores are
+present in that same environment, and the run therefore shows up in the dataset's
+Experiments tab (the earlier "empty Experiments tab" symptom was precisely the
+missing experiment-item marking described above).
 
 ---
 
@@ -440,10 +500,10 @@ version-over-version score history is still open.
   (`run_conversation`); ✅ grown to 30 cases across 7 categories; ✅ a first
   variance pass that both taught an infra-vs-signal lesson and isolated a real,
   reproducible output-retry issue on heavy single-plan synthesis (still open —
-  see §9); ✅ Langfuse trace tagging for eval vs. live traffic (§10). ⬜
+  see §9); ✅ Langfuse trace tagging for eval vs. live traffic (§10); ✅ Langfuse
+  dataset-run publishing (3.5 — score history across versions, §10.1). ⬜
   Remaining: a clean multi-repeat variance run (now that concurrency is tuned)
-  to set defensible per-category CI thresholds; optional Langfuse
-  dataset-run publishing (3.5, distinct from the trace tagging above).
+  to set defensible per-category CI thresholds.
 - **Phase 4 — ⬜ CI gating.** A separate `evals.yml` workflow, path-filtered to
   `backend/app/agent/**` (incl. the system prompt), that fails a PR when a
   category pass rate drops below threshold — "eval-gated prompt deployment."

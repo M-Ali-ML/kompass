@@ -257,7 +257,75 @@
         architectural fix, but now a more accurate diagnosis of what to fix.</div>
       </div>
 
+      <div class="t-item">
+        <span class="pill done">Shipped · 2026-07-05</span>
+        <b>Langfuse dataset runs — eval scores are now browsable version-over-version, not just per-run</b>
+        <p>Roadmap item 3.5, done. The trace tagging shipped earlier answers "let me look at <em>this</em> run";
+        this closes the loop with the other question — "how did case <em>X</em>, or category <em>Y</em>, score across
+        <em>every</em> run and prompt/model version?" Each <code>evals.run</code> now mirrors the golden set into a
+        Langfuse dataset (<code>kompass-golden</code>) and publishes the run as a <b>dataset run</b>: one item-run per
+        case linked to its agent trace, one <code>BOOLEAN</code> score per assertion, plus per-category and overall
+        <code>NUMERIC</code> scores on the run itself — so Langfuse's dataset comparison view charts and diffs score
+        history across versions.</p>
+        <p style="margin-top:10px"><b>Design — mirror, don't re-run:</b> kept pydantic-evals as the source of truth
+        rather than re-scoring on Langfuse's own experiment runner (which would double the model spend). The catch was
+        linking each Langfuse score to the right case: pydantic-evals owns the execution loop, so
+        <code>evals/tasks.py</code> wraps each case in a Langfuse span and stamps its trace id onto the
+        <code>ReportCase</code> via <code>set_eval_attribute("langfuse_trace_id", …)</code> — an exact, per-row link.
+        <code>evals/langfuse_dataset.py</code> then does the sync + publish; failed cases (which lose their attributes)
+        fall back to a per-run trace registry. On by default when Langfuse keys are set, skippable with
+        <code>--no-langfuse-dataset</code>, a no-op otherwise.</p>
+        <div class="callout"><b>Verified live, not just wired:</b> ran a single-case <code>evals.run</code> and queried
+        the Langfuse API back — the dataset run was created, its item linked to the agent trace, and all four assertion
+        scores plus <code>overall_pass_rate</code> and <code>category:human_in_the_loop</code> run-level scores were
+        confirmed present. 67 backend tests green. See
+        <a href="evals.md#101-langfuse-dataset-runs-score-history-across-versions">evals.md §10.1</a> for the mechanics.</div>
+      </div>
+
     </div>
+
+      <div class="t-item">
+        <span class="pill done">Verified · 2026-07-05</span>
+        <b>First full 30-case run through the dataset-run publisher — clean, plus one Langfuse tidiness fix</b>
+        <p>Ran the whole suite (<code>uv run python -m evals.run</code>, <code>gemini-2.5-flash</code> agent /
+        <code>flash-lite</code> judge): <b>29/30 cases clean with 100% of executed assertions passing</b> across all
+        seven categories. The one failure was the <em>known-open</em> <code>greek_island_hop_single_plan</code>
+        output-retry exhaustion (§9), plus a transient <code>503</code> from the judge model on one case (infra
+        noise, not a regression). The Langfuse dataset run published correctly and was verified back via the API:
+        <b>30/30 run items linked to their agent traces</b> — including the failed case, linked via the trace registry
+        fallback and flagged <code>task_error=1</code> — with per-assertion scores and the run-level
+        <code>overall_pass_rate</code>/<code>category:*</code> aggregates all present.</p>
+        <div class="callout"><b>Tidiness fix the run surfaced:</b> the dataset run and per-case eval traces were all
+        correctly tagged <code>environment=eval</code>, but a handful of stray <code>agent run</code> traces were
+        landing in the <code>default</code> environment. Root cause: the <b>LLM-as-judge</b> runs inside evaluators,
+        <em>after</em> the task and outside the per-case trace context, so its calls weren't inheriting the eval tags.
+        Fixed by wrapping the judge's own run in <code>trace_attributes(environment="eval", trace_name="judge",
+        tags=["kompass-eval","judge"])</code> (and naming the agent <code>kompass_judge</code>) — verified the judge
+        call now lands as a <code>judge</code> trace in <code>environment=eval</code>. Pre-existing, not caused by the
+        dataset-run work, but caught because the full run made it visible. 67 backend tests green.</div>
+      </div>
+
+      <div class="t-item">
+        <span class="pill done">Fixed · 2026-07-05</span>
+        <b>Dataset runs were API-visible but the Langfuse <em>Experiments</em> tab was empty — made each case a real experiment item</b>
+        <p>Follow-up to the dataset-run work above: the runs existed and every score was present via the API, yet the
+        dataset's <b>Experiments</b> tab showed "No data". Root cause: linking a trace to a run with the low-level
+        <code>api.dataset_run_items.create</code> call produces a valid dataset run, but the Experiments tab only
+        surfaces traces that the SDK's own <code>run_experiment()</code> marks as <b>experiment items</b> —
+        <code>environment="sdk-experiment"</code> plus a set of <code>langfuse.experiment.*</code> span attributes. Our
+        traces were tagged <code>environment=eval</code> with none of those attributes, so they never qualified.</p>
+        <div class="callout"><b>Fix:</b> replicate exactly what <code>run_experiment()</code> does per item, minus
+        re-running the agent (keeping pydantic-evals as the executor). During the run, <code>tasks.py</code> now calls
+        <code>create_run_item()</code> (links the case's own agent trace to the run) and <code>experiment_context()</code>
+        (flips the root span to the <code>sdk-experiment</code> environment and propagates the experiment identity —
+        id/name/dataset/item — to the agent's child spans via the SDK's own propagation helper). Scores are written in
+        that same <code>sdk-experiment</code> environment so the tab's score columns line up. <code>publish_report()</code>
+        is now scores-only (the run + items are created during the run). Verified via the API: each case's trace lands in
+        <code>sdk-experiment</code> with a linked run item, and <code>task_error</code>/assertion/run-level scores are
+        present in that environment. Also hardened a latent crash — <code>report.case_groups</code> is a method, not a
+        list, so the empty-<code>report.cases</code> fallback (every case errored) used to raise
+        <code>TypeError</code>. 67 backend tests green.</div>
+      </div>
 
     <div class="callout" style="margin-top:30px">
       <b>Next entry TBD.</b> This section grows every time <code>uv run python -m evals.run</code> teaches us
@@ -278,6 +346,7 @@
           <tr><td>Variance study</td><td><code>uv run python -m evals.run --repeat 3 --concurrency 3</code></td></tr>
           <tr><td>Override the judge model</td><td><code>uv run python -m evals.run --judge-model google:gemini-2.5-flash-lite</code></td></tr>
           <tr><td>Live results dashboard</td><td><code>uv run python -m evals.dashboard</code> → <code>http://localhost:8420</code></td></tr>
+          <tr><td>Skip Langfuse dataset run</td><td><code>uv run python -m evals.run --no-langfuse-dataset</code></td></tr>
         </tbody>
       </table>
     </div>

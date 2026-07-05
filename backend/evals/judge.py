@@ -25,6 +25,7 @@ from pydantic_ai import Agent
 # so it never shifts just because prod's LLM_MODEL / RESEARCH_MODEL changes;
 # override via the EVAL_JUDGE_MODEL env var (or backend/.env).
 from app.config import settings
+from app.telemetry import trace_attributes
 
 
 class Verdict(BaseModel):
@@ -47,6 +48,7 @@ _JUDGE_INSTRUCTIONS = (
 @lru_cache(maxsize=1)
 def _judge_agent() -> Agent:
     return Agent(
+        name="kompass_judge",
         model=settings.eval_judge_model,
         output_type=Verdict,
         instructions=_JUDGE_INSTRUCTIONS,
@@ -56,5 +58,15 @@ def _judge_agent() -> Agent:
 async def judge(criterion: str, content: str) -> Verdict:
     """Return the judge's verdict on whether `content` satisfies `criterion`."""
     prompt = f"CRITERION:\n{criterion}\n\nRESPONSE SLICE:\n{content}"
-    result = await _judge_agent().run(prompt)
+    # Evaluators run the judge *after* the task, outside the per-case trace
+    # context — so without this the judge's LLM calls would land as separate,
+    # untagged traces in Langfuse's "default" environment. Stamp them as
+    # eval-suite judge noise so they stay filterable and out of production
+    # dashboards (no-op when Langfuse is off).
+    with trace_attributes(
+        environment="eval",
+        trace_name="judge",
+        tags=["kompass-eval", "judge"],
+    ):
+        result = await _judge_agent().run(prompt)
     return result.output

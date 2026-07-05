@@ -32,6 +32,7 @@ from app.config import settings
 from app.telemetry import flush_telemetry, init_telemetry
 
 from evals.cases import build_dataset
+from evals.langfuse_dataset import publish_report, reset_trace_registry, sync_cases
 from evals.schema import CaseMeta
 from evals.tasks import make_task
 
@@ -45,12 +46,8 @@ def _assertion_value(result: Any) -> bool | None:
 
 
 def _iter_report_cases(report: Any) -> list[Any]:
-    if getattr(report, "cases", None):
-        return list(report.cases)
-    cases: list[Any] = []
-    for group in getattr(report, "case_groups", []) or []:
-        cases.extend(getattr(group, "cases", []) or [])
-    return cases
+    cases = getattr(report, "cases", None)
+    return list(cases) if isinstance(cases, (list, tuple)) else []
 
 
 def _rate(values: list[bool]) -> dict[str, Any]:
@@ -192,7 +189,23 @@ async def _amain(args: argparse.Namespace) -> None:
     model = args.model or settings.eval_model
     if args.judge_model:
         settings.eval_judge_model = args.judge_model
-    task = make_task(model, run_id=run_id)
+
+    # Mirror the golden cases into a Langfuse dataset up front so this run's
+    # experiment items have items to attach to. No-op when Langfuse isn't
+    # configured or when disabled with --no-langfuse-dataset. Determined before
+    # the task is built so the task knows whether to emit experiment items.
+    push_dataset = args.langfuse_dataset
+    if push_dataset:
+        reset_trace_registry()
+        push_dataset = sync_cases(list(dataset.cases))
+
+    task = make_task(
+        model,
+        run_id=run_id,
+        publish=push_dataset,
+        judge_model=settings.eval_judge_model,
+        repeat=args.repeat,
+    )
 
     try:
         report = await dataset.evaluate(
@@ -212,6 +225,11 @@ async def _amain(args: argparse.Namespace) -> None:
 
     agg = _aggregate(report)
     _print_summary(agg)
+
+    if push_dataset:
+        url = publish_report(report, agg, run_id=run_id)
+        if url:
+            print(f"\nPublished Langfuse dataset run '{run_id}' → {url}")
 
     _ARTIFACTS.mkdir(exist_ok=True)
     stamp = run_id
@@ -238,6 +256,12 @@ def main() -> None:
     parser.add_argument("--case", action="append", help="Run only named case(s); repeatable.")
     parser.add_argument("--repeat", type=int, default=1, help="Runs per case (variance study).")
     parser.add_argument("--concurrency", type=int, default=3, help="Max concurrent cases.")
+    parser.add_argument(
+        "--langfuse-dataset",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Publish this run as a Langfuse dataset run (no-op unless Langfuse is configured).",
+    )
     args = parser.parse_args()
     asyncio.run(_amain(args))
 

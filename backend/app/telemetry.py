@@ -81,6 +81,25 @@ def flush_telemetry() -> None:
         logger.warning(f"Failed to flush Langfuse telemetry: {e}")
 
 
+def get_langfuse_client() -> Any | None:
+    """The initialized Langfuse client, or None when telemetry is disabled.
+
+    Lets callers (e.g. the eval suite's dataset-run publisher) reach the raw
+    client for dataset/score APIs without each re-checking configuration or
+    importing langfuse directly. Returns None (never raises) when Langfuse
+    isn't configured, so call sites can branch on truthiness.
+    """
+    if not _enabled:
+        return None
+    try:
+        from langfuse import get_client
+
+        return get_client()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not obtain Langfuse client: {e}")
+        return None
+
+
 def trace_attributes(
     *,
     session_id: str | None = None,

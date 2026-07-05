@@ -4,6 +4,8 @@ Kompass is an autonomous travel planning application that automatically optimize
 
 > 🧭 **See the architecture & full request flow visually:** [m-ali-ml.github.io/kompass](https://m-ali-ml.github.io/kompass/) — an interactive, step-by-step walkthrough of the whole system.
 
+![Kompass researching a trip live: chat with streaming research/flights/accommodations tool cards next to an interactive map](./docs/assets/kompass-demo.gif)
+
 ---
 
 ## 📁 Repository Structure

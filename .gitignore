@@ -83,3 +83,7 @@ logs/
 # Folders
 artifacts/
 sessions/
+
+# Raw screen recordings (source footage for README GIFs; keep GIFs, not raw video)
+docs/assets/*.mp4
+docs/assets/*.mov
