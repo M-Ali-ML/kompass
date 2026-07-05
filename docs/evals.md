@@ -261,10 +261,10 @@ confirmed it.**
 ```bash
 cd backend
 
-# Full dataset against the model in .env (LLM_MODEL, currently gemini-2.5-flash)
+# Full dataset against the model in .env (LLM_MODEL, currently gemini-3.1-flash-lite)
 uv run python -m evals.run
 
-# Cheaper/other model, a single case, or a variance study
+# A different model (e.g. the older flash tier), a single case, or a variance study
 uv run python -m evals.run --model google:gemini-2.5-flash
 uv run python -m evals.run --judge-model google:gemini-2.5-flash-lite
 uv run python -m evals.run --case greek_island_hop_single_plan

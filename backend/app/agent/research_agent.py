@@ -44,7 +44,8 @@ research_agent = Agent(
     output_type=str,
     capabilities=[WebSearch()],
     instructions=RESEARCH_INSTRUCTIONS,
-    # Disable Gemini's reasoning phase (thinking_budget=0 on gemini-2.5-flash).
+    # Minimize Gemini's reasoning phase (thinking_budget=0 on gemini-2.5-flash;
+    # the MINIMAL thinking level on the Gemini 3 tier, e.g. gemini-3.1-flash-lite).
     # These are quick, grounded lookups returning plain text — thinking only adds
     # latency, and several of these run in parallel per turn, so the saved time
     # compounds and keeps context out of the slow/fragile final synthesis path.

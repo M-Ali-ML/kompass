@@ -21,12 +21,12 @@ class Settings(BaseSettings):
     # Secret fields use SecretStr so they auto-mask in any repr / model_dump
     # (e.g. the DEBUG settings dump). Read the raw value with .get_secret_value().
     google_api_key: SecretStr = Field(alias="GOOGLE_API_KEY")
-    llm_model: str = Field("google:gemini-2.5-flash", alias="LLM_MODEL")
+    llm_model: str = Field("google:gemini-3.1-flash-lite", alias="LLM_MODEL")
 
     # Model for the grounded web-research sub-agent (app/agent/research_agent.py).
     # These are quick, parallel, plain-text grounded lookups, so a cheap/fast tier
     # is a good fit and keeps it decoupled from the main planning model.
-    research_model: str = Field("google:gemini-2.5-flash", alias="RESEARCH_MODEL")
+    research_model: str = Field("google:gemini-3.1-flash-lite", alias="RESEARCH_MODEL")
 
     # Eval suite (backend/evals). `eval_model` optionally overrides the
     # agent-under-test model (defaults to LLM_MODEL — "test what ships");
@@ -35,6 +35,16 @@ class Settings(BaseSettings):
     # LLM_MODEL changes. Both are read by evals/run.py and evals/judge.py.
     eval_model: Optional[str] = Field(None, alias="EVAL_MODEL")
     eval_judge_model: str = Field("google:gemini-2.5-flash-lite", alias="EVAL_JUDGE_MODEL")
+
+    # Comma-separated fallback chain for the judge (see evals/judge.py). Gemini's
+    # free/low tiers occasionally 503 ("high demand") under load; PydanticAI's
+    # FallbackModel retries the next model in the list on any ModelAPIError
+    # instead of failing the whole eval run. Defaults to two other cheap Gemini
+    # tiers so a single model's transient outage doesn't block a run.
+    eval_judge_fallback_models: str = Field(
+        "google:gemini-2.0-flash-lite,google:gemini-2.5-flash",
+        alias="EVAL_JUDGE_FALLBACK_MODELS",
+    )
 
     # Trip "vibe" background image generation. A cheap Gemini image model paints
     # a destination/atmosphere image per trip (shown in the trip sidebar + the

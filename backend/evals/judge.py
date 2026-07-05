@@ -9,6 +9,11 @@ runs on flash-lite by default: scoring a single boolean rubric is well within
 flash-lite's ability and keeps eval cost low. Override with EVAL_JUDGE_MODEL
 (flash-lite's empty-completion issues on large *synthesis* contexts don't apply
 here — the judge only emits a tiny structured verdict).
+
+Gemini's cheap tiers occasionally return transient 503s ("high demand") under
+load. Rather than failing the whole eval run on one bad model, the judge is
+wrapped in a `FallbackModel` that retries the next model in
+EVAL_JUDGE_FALLBACK_MODELS on any ModelAPIError (which covers 503s).
 """
 
 from __future__ import annotations
@@ -17,6 +22,8 @@ from functools import lru_cache
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import ModelAPIError
+from pydantic_ai.models.fallback import FallbackModel
 
 # app.config is the credential boundary (exports GOOGLE_API_KEY to the env for
 # the Gemini provider) and the source of the judge model setting. Importing it
@@ -47,9 +54,19 @@ _JUDGE_INSTRUCTIONS = (
 
 @lru_cache(maxsize=1)
 def _judge_agent() -> Agent:
+    fallback_names = [
+        name.strip()
+        for name in settings.eval_judge_fallback_models.split(",")
+        if name.strip() and name.strip() != settings.eval_judge_model
+    ]
+    model = (
+        FallbackModel(settings.eval_judge_model, *fallback_names, fallback_on=(ModelAPIError,))
+        if fallback_names
+        else settings.eval_judge_model
+    )
     return Agent(
         name="kompass_judge",
-        model=settings.eval_judge_model,
+        model=model,
         output_type=Verdict,
         instructions=_JUDGE_INSTRUCTIONS,
     )

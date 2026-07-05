@@ -70,11 +70,13 @@ llm_model = settings.llm_model
 # tokens) on every request for a structured-output path the app never renders.
 # `retries={'tools': 2, 'output': 2}`: `tools` covers tool-output validation
 # (e.g. generate_scenarios re-calls on an incomplete day plan); `output` (raised
-# from the default 1) covers the TEXT path — on a large final-synthesis context
-# Flash intermittently returns an empty completion with no first token, and one
-# retry isn't always enough to recover. The eval variance study surfaced this as
-# `UnexpectedModelBehavior: Exceeded maximum output retries (1)` on the heaviest
-# single-plan cases (12-day island hop, detailed foodie/hiking days).
+# from the default 1) covers the TEXT path. This was originally added for
+# gemini-2.5-flash, which intermittently returned an empty completion with no
+# first token on a large final-synthesis context (surfaced by the eval variance
+# study as `UnexpectedModelBehavior: Exceeded maximum output retries (1)` on the
+# heaviest single-plan cases). gemini-3.1-flash-lite doesn't share that failure
+# mode, but the extra retry is cheap insurance and kept until evals confirm it's
+# unnecessary.
 kompass_agent = Agent(
     llm_model,
     deps_type=AgentDependencies,
@@ -85,11 +87,7 @@ kompass_agent = Agent(
     # questions rather than drifting into plain-text prose. (Merged with the
     # per-request `timeout` set on dispatch.)
     #
-    # `thinking: False` disables Gemini's reasoning phase (maps to
-    # thinking_budget=0 on gemini-2.5-flash). On a large final-synthesis context
-    # the model would otherwise spend the whole request budget "thinking" and
-    # return an empty completion with no first token, stalling the run.
-    model_settings={'temperature': 0.2, 'thinking': False},
+    model_settings={'temperature': 0.2, 'thinking': "low"},
 )
 
 @kompass_agent.tool

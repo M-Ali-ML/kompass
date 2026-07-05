@@ -613,11 +613,11 @@ trip  = <span class="m">upsert_trip</span>(thread_id)
 run   = agent.<span class="m">run_ag_ui</span>(deps=...)`,
    f:["api/routes.py","user_preferences.py"]},
 
-  {t:"Launch the agent",sub:"Gemini Flash, thinking off",layer:"agent",lit:[false,true,true,false],
-   narr:"The PydanticAI kompass_agent starts with output_type = str (plans always render via generate_scenarios) and thinking disabled, so Flash doesn't burn its budget 'thinking' on a large context. AgentDependencies injects the prompt service, repositories, and the flight/accommodation/research services it can reach for.",
+  {t:"Launch the agent",sub:"Gemini 3.1 Flash-Lite, minimal thinking",layer:"agent",lit:[false,true,true,false],
+   narr:"The PydanticAI kompass_agent starts with output_type = str (plans always render via generate_scenarios) and thinking minimized, keeping latency and cost down without hurting tool-calling. AgentDependencies injects the prompt service, repositories, and the flight/accommodation/research services it can reach for.",
    code:`<span class="c"># agent/agent.py</span>
 kompass_agent = <span class="m">Agent</span>(
-  model=<span class="s">"google:gemini-2.5-flash"</span>,
+  model=<span class="s">"google:gemini-3.1-flash-lite"</span>,
   output_type=<span class="k">str</span>,
   deps_type=AgentDependencies,
   retries={<span class="s">"tools"</span>: 2, <span class="s">"output"</span>: 2},
