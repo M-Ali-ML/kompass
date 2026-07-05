@@ -66,9 +66,28 @@ class ConstraintAdherence(Evaluator):
         res: dict[str, bool] = {}
 
         if meta.budget_cap is not None:
-            res["budget_respected"] = bool(scenarios) and all(
+            within_cap = all(
                 s["cost_breakdown"]["grand_total"] <= meta.budget_cap + 0.01
                 for s in scenarios
+            )
+            if meta.budget_infeasible:
+                # Honest refusal (no plan) or a genuinely within-cap plan both
+                # pass; only a fabricated over-budget "fit" fails.
+                res["no_overbudget_plan"] = (not scenarios) or within_cap
+            else:
+                res["budget_respected"] = bool(scenarios) and within_cap
+
+        if meta.expect_currency is not None:
+            want = meta.expect_currency.upper()
+            payload_ccy = (out.scenarios_payload or {}).get("currency")
+            fcalls = out.flight_calls
+            checks = [bool(scenarios) and str(payload_ccy or "").upper() == want]
+            checks += [str(c.get("currency", "")).upper() == want for c in fcalls]
+            res["currency_respected"] = all(checks)
+
+        if meta.expect_travelers is not None:
+            res["travelers_propagated"] = bool(scenarios) and all(
+                s.get("travelers") == meta.expect_travelers for s in scenarios
             )
 
         if meta.direct_only:
@@ -111,8 +130,13 @@ class AntiFabrication(Evaluator):
         if not meta.expect_estimated:
             return {}
         payload = out.scenarios_payload
+        # A grounded fallback is either a general web search or the ground-
+        # transport research tool (ferries/trains have no live price feed).
+        fell_back = any(
+            t in out.tool_names for t in ("search_web", "search_ground_transport")
+        )
         return {
-            "fell_back_to_search": "search_web" in out.tool_names,
+            "fell_back_to_search": fell_back,
             "prices_flagged_estimated": bool(payload) and payload.get("estimated") is True,
         }
 
@@ -228,6 +252,81 @@ class ItineraryStructure(Evaluator):
         return res
 
 
+@dataclass
+class HITLBehavior(Evaluator):
+    """Asks a clarifying question when (and only when) info is genuinely missing."""
+
+    def evaluate(self, ctx: EvalCtx) -> dict[str, bool]:
+        meta, out = ctx.metadata, ctx.output
+        asked = "ask_clarifying_question" in out.tool_names
+        res: dict[str, bool] = {}
+        if meta.expect_clarification:
+            res["asked_when_underspecified"] = asked
+        if meta.forbid_clarification:
+            res["did_not_ask_when_complete"] = not asked
+        return res
+
+
+def _day_digest(scenario: dict, limit: int = 6) -> str:
+    """Compact day-by-day activity text for the vibe judge (no prices/dates)."""
+    days = scenario.get("itinerary", {}).get("days", [])[:limit]
+    lines: list[str] = []
+    for d in days:
+        acts = "; ".join(
+            f"{p.get('period', '')}: {p.get('activity', '')}".strip(": ")
+            for p in d.get("schedule", [])
+        )
+        head = d.get("title") or d.get("description", "")
+        lines.append(f"Day {d.get('day_number', '?')} — {head}. {acts}".strip())
+    return "\n".join(lines)
+
+
+@dataclass
+class ConciseRecommendation(Evaluator):
+    """Judge: the final reply is a short recommendation, not a prose itinerary.
+
+    The system prompt's contract is 'the cards ARE the plan' — the chat reply
+    should pick/justify an option or give a next step in a few sentences, not
+    re-narrate the day-by-day (which lives in the generative-UI cards)."""
+
+    async def evaluate(self, ctx: EvalCtx) -> dict[str, bool]:
+        meta, out = ctx.metadata, ctx.output
+        if not (meta.judge_recommendation and out.scenarios):
+            return {}
+        from evals.judge import judge
+
+        criterion = (
+            "The reply is a concise recommendation (roughly 1-4 sentences) that "
+            "helps the traveler decide — e.g. it recommends or contrasts the "
+            "option(s), or suggests a clear next step. It must NOT be a long "
+            "prose restatement of the day-by-day itinerary."
+        )
+        verdict = await judge(criterion, out.output_text)
+        return {"concise_recommendation": verdict.passed}
+
+
+@dataclass
+class VibeMatch(Evaluator):
+    """Judge: the day-by-day activities match the requested trip vibe."""
+
+    async def evaluate(self, ctx: EvalCtx) -> dict[str, bool]:
+        meta, out = ctx.metadata, ctx.output
+        if not (meta.judge_vibe and out.scenarios):
+            return {}
+        from evals.judge import judge
+
+        richest = max(out.scenarios, key=lambda s: len(s["itinerary"].get("days", [])))
+        digest = _day_digest(richest)
+        if not digest.strip():
+            return {"vibe_matches_activities": False}
+        criterion = (
+            f"The day-by-day activities clearly reflect a '{meta.judge_vibe}' "
+            "trip. Most days should feature activities fitting that vibe."
+        )
+        verdict = await judge(criterion, digest)
+        return {"vibe_matches_activities": verdict.passed}
+
+
 # All evaluators run on every case; each self-selects via CaseMeta.
 ALL_EVALUATORS: list[Evaluator] = [
     ToolSelection(),
@@ -237,4 +336,7 @@ ALL_EVALUATORS: list[Evaluator] = [
     InternalConsistency(),
     PlanQuality(),
     ItineraryStructure(),
+    HITLBehavior(),
+    ConciseRecommendation(),
+    VibeMatch(),
 ]

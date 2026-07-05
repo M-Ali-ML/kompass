@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kompass Docs — Eval Learnings Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800;1,9..40,500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="compass">🧭</span> Kompass Docs</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a>
+      <a href="index.html#flow">Flow Demo</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="product.html">Product</a>
+      <a href="design.html">Design</a>
+      <a href="user-stories.html">User Stories</a>
+      <a href="evals.html" class="active">Evals</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow">Eval-driven development · a living log</span>
+    <h1 class="page-title">What we <span class="grad">learned</span> by measuring the agent instead of vibing it</h1>
+    <p class="lead">Anyone can prompt an LLM into building a travel agent demo. The differentiator is proving it
+    works — and keeps working — with a repeatable, numeric harness. This page is the running receipt: every
+    time <code>evals/run.py</code> surfaces something real, it gets an entry below, with the before/after
+    evidence. It's updated every time we discover something new, not rewritten after the fact.</p>
+  </header>
+
+  <!-- SNAPSHOT -->
+  <section id="snapshot" style="padding-top:8px">
+    <div class="stats">
+      <div class="stat"><div class="num">30</div><div class="lbl">Golden cases</div></div>
+      <div class="stat"><div class="num">7</div><div class="lbl">Categories · 10 evaluators</div></div>
+      <div class="stat"><div class="num">2</div><div class="lbl">Real regressions caught</div></div>
+      <div class="stat"><div class="num">100%</div><div class="lbl">Executed assertions, latest clean run</div></div>
+    </div>
+  </section>
+
+  <!-- WHY -->
+  <section id="why">
+    <span class="eyebrow">Why this page exists</span>
+    <h2>"It got better" is a vibe. A pass-rate delta is a fact.</h2>
+    <p class="lead">Every entry below follows the same loop: the eval suite measures something, a specific number
+    moves or a specific run fails, we root-cause it, we fix it at the right layer (never by begging the model
+    harder in the prompt), and we re-run to confirm. That loop — not the travel-planning demo itself — is the
+    part that's hard to fake and expensive to skip.</p>
+    <div class="grid cols-3">
+      <div class="card"><div class="icon i-pink">🩻</div><h3>Blind spots, made visible</h3>
+        <p>60 pytest tests covered <em>code</em> and stayed green the whole time the model was silently reporting
+        wrong subtotals. Only a behavioral eval — the real LLM, a real prompt, adversarial fixtures — caught it.</p></div>
+      <div class="card"><div class="icon i-purple">🎯</div><h3>Attributable, not anecdotal</h3>
+        <p>The data layer (flights, hotels, research) is faked deterministically, so when a number moves, it can
+        only be the model or the prompt — never "Kiwi changed its prices today."</p></div>
+      <div class="card"><div class="icon i-blue">🧯</div><h3>Root cause over prompt-pleading</h3>
+        <p>The headline finding below is deliberately <em>not</em> "we told Gemini to be more careful with math."
+        Arithmetic moved out of the model's job entirely. That's the senior-engineer instinct evals make possible.</p></div>
+    </div>
+  </section>
+
+  <!-- THE LOG -->
+  <section id="log">
+    <span class="eyebrow">The log</span>
+    <h2>Every discovery, in order</h2>
+    <p class="lead">Chronological, oldest first — each entry is appended when a run teaches us something, never
+    edited after the fact to look tidier. Full mechanics of the suite (fixtures, evaluators, harness) live in
+    <a href="evals.md">docs/evals.md</a>.</p>
+
+    <div class="timeline">
+
+      <div class="t-item">
+        <span class="pill phase">Phase 1 · 2026-07-04</span>
+        <b>Making the agent evaluable headless nearly broke on a tool that doesn't exist headless</b>
+        <p><code>ask_clarifying_question</code> is a <em>frontend</em> tool (CopilotKit's human-in-the-loop card) —
+        it has no implementation outside the browser. The first headless runs silently burned their output-retry
+        budget every time the model reached for it. <b>Learning:</b> evaluability isn't free; it required a
+        scripted stub toolset in the harness from day one, and extracting <code>ResearchServicePort</code> so
+        grounded web search could be swapped for a fake like every other data source. All 59 pytest tests stayed
+        green through the refactor.</p>
+      </div>
+
+      <div class="t-item">
+        <span class="pill phase">Phase 2 · 2026-07-04</span>
+        <b>First golden baseline: 12 cases, 6 categories, 93.8% — and it immediately paid for itself</b>
+        <p>The very first live run against production <code>gemini-2.5-flash</code> flagged one assertion,
+        <code>itemized_costs_sum_to_subtotals</code>, at 75%. Everything else — budget caps, direct-only
+        <code>max_stops=0</code>, no-red-eye legs, party-size propagation, empty-route fallback, per-island
+        lodging — passed cold on the first try.</p>
+      </div>
+
+      <div class="t-item">
+        <span class="pill done">Fixed · 2026-07-04</span>
+        <b>Headline finding: Flash can gather six flight/hotel line items correctly and still fail to add them up</b>
+        <p>Diagnosis of the failing island-hop run showed the model's itemized legs and hotels were <em>correct
+        and complete</em> — but the subtotals it reported were fiction: transportation €600 when its own six legs
+        summed to €1252. This is a data-gathering success and a pure arithmetic failure.</p>
+        <div class="bar"><span style="width:75%"></span></div>
+        <p style="margin-top:4px;font-size:13px">Before — <code>itemized_costs_sum_to_subtotals</code>: <b>75%</b> (9/12)</p>
+        <p style="margin-top:10px"><b>Fix:</b> stopped delegating arithmetic to the model. <code>generate_scenarios</code>
+        now re-derives <code>transportation</code>/<code>accommodation</code> subtotals by summing the model's own
+        <code>Leg.cost</code> / <code>Accommodation.cost</code> line items server-side, then the grand total from
+        those subtotals — deterministic code, not a prompt plea. A new unit test
+        (<code>test_generate_scenarios_normalizes_subtotals_from_line_items</code>) locks it in.</p>
+        <div class="bar green"><span style="width:100%"></span></div>
+        <p style="margin-top:4px;font-size:13px">After re-run — <code>itemized_costs_sum_to_subtotals</code>: <b>100%</b>, every category 100%.</p>
+        <div class="callout"><b>Why it matters:</b> the assertion flipped from a <em>model signal</em> into a
+        <em>pipeline invariant guard</em> — it now exists to catch anyone who accidentally removes the
+        normalization, which is exactly what a regression test should do.</div>
+      </div>
+
+      <div class="t-item">
+        <span class="pill info">Noted · 2026-07-04</span>
+        <b>Fixing one thing surfaced the next: heavy single-plan synthesis is flaky</b>
+        <p>Re-running the full suite after the cost fix landed a new, different failure: the heaviest case in the
+        set (a 12-day Greek island hop rendered as <em>one</em> fully-detailed plan) passed in the baseline but
+        errored on the very next run with <code>UnexpectedModelBehavior: Exceeded maximum output retries</code>.
+        Flagged rather than chased immediately — a single data point isn't a diagnosis, it's a reason to run a
+        variance study.</p>
+      </div>
+
+      <div class="t-item">
+        <span class="pill phase">Phase 3 · 2026-07-05</span>
+        <b>Dataset grown 12 → 30 cases; the suite learned to judge things a Python <code>assert</code> can't</b>
+        <p>Added human-in-the-loop cases (does the agent ask when info is genuinely missing, and stay quiet when
+        it isn't?), multi-turn refinement cases (shared <code>message_history</code> across turns — "now add a
+        cheaper option", "make it for 4 people instead"), and a small LLM-as-judge (<code>evals/judge.py</code>)
+        for soft criteria no deterministic check can express: is the chat reply a concise recommendation rather
+        than a wall of prose, and do the day-by-day activities actually match the requested vibe ("relaxed
+        foodie", "adventure hiking")? The judge is deliberately decoupled from the agent under test — see below.</p>
+      </div>
+
+      <div class="t-item">
+        <span class="pill info">Noted · 2026-07-05</span>
+        <b>A "28 cases failed" run taught a meta-lesson: don't trust a red run before you've ruled out infra</b>
+        <p>The first full variance pass (30 cases × 3 repeats at concurrency 6) came back with almost everything
+        "erroring." Reading the actual error bodies showed <code>429 RESOURCE_EXHAUSTED</code> quota errors and
+        <code>504 DEADLINE_EXCEEDED</code> timeouts — the harness was firing more concurrent Gemini requests than
+        the API tier allows, not a model or prompt regression. <b>Practice adopted:</b> re-run flagged cases at
+        low concurrency before treating any failure as a real signal; the runner's per-case aggregation now
+        separates <code>error_runs</code> from genuine assertion failures for exactly this reason.</p>
+      </div>
+
+      <div class="t-item">
+        <span class="pill done">Isolated · 2026-07-05</span>
+        <b>After removing the noise: a clean, real signal — two heavy-synthesis cases genuinely fail</b>
+        <p>At safe concurrency, 22 of 30 cases ran clean with <b>100%</b> of executed assertions passing —
+        budgets, currency propagation, direct-only, no-red-eye, party-size (solo through groups of 6), ferry/rail
+        multi-city chains, HITL ask/don't-ask, multi-turn refinement, and the LLM-judge criteria all held.
+        Re-running the 8 flagged cases individually separated 6 transient infra errors from <b>2 reproducible</b>
+        failures: <code>greek_island_hop_single_plan</code> and <code>vibe_relaxed_foodie</code> — both single,
+        maximally-detailed 12-day plans — consistently hit
+        <code>UnexpectedModelBehavior: Exceeded maximum output retries</code>. Root cause: on a very large
+        final-synthesis context, Flash intermittently returns an empty completion with no first token.</p>
+      </div>
+
+      <div class="t-item">
+        <span class="pill partial">Open · 2026-07-05</span>
+        <b>Tried the obvious fix; it wasn't enough — logged as open, not papered over</b>
+        <p>Raised the agent's output-retry budget from the pydantic-ai default of 1 to 2
+        (<code>retries={'tools': 2, 'output': 2}</code>) to give a large synthesis a second chance at a
+        non-empty completion. Re-verified on the same two cases: <b>still fails</b>, now as
+        <code>Exceeded maximum output retries (2)</code>. This is the honest outcome of the loop, not a hidden
+        one — the fix has to be architectural (lighten the day-by-day detail the prompt asks for in single-plan
+        mode, or split the synthesis into two calls), and that's queued as the next thing the eval suite will
+        verify once it ships.</p>
+      </div>
+
+      <div class="t-item">
+        <span class="pill info">Improved · 2026-07-05</span>
+        <b>Made the eval config itself a first-class, observable setting</b>
+        <p>The LLM judge now defaults to <code>gemini-2.5-flash-lite</code> — cheap and plenty for a boolean
+        rubric — while the agent under test stays on whatever ships in <code>LLM_MODEL</code>, so a judge-cost
+        optimization can never quietly change what's actually being measured. Both are configurable three ways
+        (CLI flag → env var → default) via <code>EVAL_MODEL</code> / <code>EVAL_JUDGE_MODEL</code> in
+        <code>backend/.env</code>, and every JSON report now records exactly which model played which role for
+        full reproducibility.</p>
+      </div>
+
+    </div>
+
+    <div class="callout" style="margin-top:30px">
+      <b>Next entry TBD.</b> This section grows every time <code>uv run python -m evals.run</code> teaches us
+      something — a new regression caught, a threshold set from variance data, or a CI gate landing in Phase 4.
+    </div>
+  </section>
+
+  <!-- HOW TO REPRODUCE -->
+  <section id="reproduce">
+    <span class="eyebrow">Reproduce it yourself</span>
+    <h2>Every claim above is one command away</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>What</th><th>Command</th></tr></thead>
+        <tbody>
+          <tr><td>Full suite, prod model</td><td><code>cd backend && uv run python -m evals.run</code></td></tr>
+          <tr><td>One case</td><td><code>uv run python -m evals.run --case greek_island_hop_single_plan</code></td></tr>
+          <tr><td>Variance study</td><td><code>uv run python -m evals.run --repeat 3 --concurrency 3</code></td></tr>
+          <tr><td>Override the judge model</td><td><code>uv run python -m evals.run --judge-model google:gemini-2.5-flash-lite</code></td></tr>
+          <tr><td>Live results dashboard</td><td><code>uv run python -m evals.dashboard</code> → <code>http://localhost:8420</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout"><b>Cost/keys.</b> Real runs call Gemini and spend tokens (needs <code>GOOGLE_API_KEY</code>).
+    The data layer (flights/hotels/research) is faked, so no paid third-party API calls are made.
+    <code>artifacts/</code> (the JSON reports) is git-ignored — reports stay local; this page is the durable
+    record of what they found.</div>
+  </section>
+
+  <footer class="footer">
+    Full technical reference: <a href="evals.md">docs/evals.md</a>
+    · Architecture: <a href="architecture.html">architecture.html</a>
+  </footer>
+
+</div>
+</body>
+</html>

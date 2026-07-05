@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kompass Docs — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800;1,9..40,500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+<style>
+  /* page-local demos */
+  .type-demo{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:26px;box-shadow:var(--shadow-soft)}
+  .type-demo .t-h1{font-size:34px;font-weight:800;letter-spacing:-1.5px}
+  .type-demo .t-h3{font-size:19px;font-weight:700;margin-top:10px}
+  .type-demo .t-body{font-size:15px;color:var(--ink-soft);margin-top:10px;max-width:560px}
+  .type-demo .t-mono{margin-top:12px}
+  .demo-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:16px}
+  .demo-btn{border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700;color:#fff;
+    padding:11px 22px;border-radius:999px;background:linear-gradient(135deg,var(--pink),var(--purple));
+    box-shadow:var(--shadow-pink);transition:.25s var(--spring)}
+  .demo-btn:hover{transform:scale(1.06)}
+  .demo-tag{font-size:12.5px;font-weight:600;padding:6px 14px;border-radius:999px}
+  .demo-card{width:220px;border-radius:16px;background:var(--card);border:1px solid var(--line);
+    padding:16px;box-shadow:var(--shadow-purple);transition:.25s var(--spring);cursor:pointer}
+  .demo-card:hover{transform:translateY(-4px) scale(1.02)}
+  .demo-card b{font-size:14px}
+  .demo-card p{font-size:12.5px;color:var(--ink-soft)}
+  .shimmer-demo{height:14px;border-radius:8px;margin-top:8px;
+    background:linear-gradient(90deg,var(--bg-soft) 25%,#fff 50%,var(--bg-soft) 75%);
+    background-size:400% 100%;animation:shimmer 1.6s linear infinite}
+  @keyframes shimmer{to{background-position:-400% 0}}
+  .progress-demo{position:relative;height:12px;border-radius:999px;background:var(--pink-soft);overflow:hidden;margin-top:10px}
+  .progress-demo span{position:absolute;top:0;bottom:0;width:38%;border-radius:999px;
+    background:linear-gradient(90deg,var(--pink),var(--purple),var(--blue));animation:slide 1.6s ease-in-out infinite alternate}
+  @keyframes slide{from{left:-5%}to{left:67%}}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="compass">🧭</span> Kompass Docs</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a>
+      <a href="index.html#flow">Flow Demo</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="product.html">Product</a>
+      <a href="design.html" class="active">Design</a>
+      <a href="user-stories.html">User Stories</a>
+      <a href="evals.html">Evals</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow">Design & styling system · Phase 10</span>
+    <h1 class="page-title">The <span class="grad">Candy</span> theme</h1>
+    <p class="lead">A bold, fun, energetic "Joyful Pop" aesthetic — hot pink, purple, and sky blue on a warm pink-white
+    canvas, with rounded corners, tinted shadows, and bouncy spring motion. Built on Tailwind CSS v4. This page renders
+    the actual system, live.</p>
+  </header>
+
+  <!-- PALETTE -->
+  <section id="palette">
+    <span class="eyebrow">Color</span>
+    <h2>Palette, straight from <code>globals.css</code></h2>
+    <div class="swatches">
+      <div class="swatch"><div class="sw" style="background:#e040a0"></div><div class="sw-info"><b>Hot Pink · Primary</b><span class="mono">#e040a0</span></div></div>
+      <div class="swatch"><div class="sw" style="background:#7c52aa"></div><div class="sw-info"><b>Purple · Secondary</b><span class="mono">#7c52aa</span></div></div>
+      <div class="swatch"><div class="sw" style="background:#0096cc"></div><div class="sw-info"><b>Sky Blue · Accent</b><span class="mono">#0096cc</span></div></div>
+      <div class="swatch"><div class="sw" style="background:#fef7ff;border-bottom:1px solid var(--line)"></div><div class="sw-info"><b>Warm Pink-White · Background</b><span class="mono">#fef7ff</span></div></div>
+    </div>
+    <div class="callout"><b>Tinted shadows:</b> cards don't cast gray — they glow. Pink, purple, and blue shadows at
+    20–35% opacity match each element's own hue.</div>
+  </section>
+
+  <!-- TYPOGRAPHY -->
+  <section id="type">
+    <span class="eyebrow">Typography</span>
+    <h2>DM Sans everywhere</h2>
+    <p class="lead">Rounded, friendly, with bold weights for headings. DM Mono covers code and data.</p>
+    <div class="type-demo">
+      <div class="t-h1">Plan the trip, skip the tabs.</div>
+      <div class="t-h3">DM Sans 700 — section headings</div>
+      <div class="t-body">DM Sans 400/500 — body copy stays soft and readable on the warm background, with the muted
+      ink color <span class="mono">#7a6385</span> for supporting text.</div>
+      <div class="t-mono mono">DM Mono — €1,234 · KIWI→ATH · 2026-09-14</div>
+    </div>
+  </section>
+
+  <!-- MOTION & SHAPE -->
+  <section id="motion">
+    <span class="eyebrow">Shape & motion</span>
+    <h2>Rounded, springy, alive</h2>
+    <p class="lead">16–20px corner radii on cards, pill-shaped tags, and a bouncy spring curve
+    (<span class="mono">cubic-bezier(.34,1.56,.64,1)</span>) on hover. Try the demos — they use the real values.</p>
+
+    <div class="demo-row">
+      <button class="demo-btn">Bouncy hover button</button>
+      <span class="demo-tag" style="background:var(--pink-soft);color:var(--pink)">✈️ direct flights</span>
+      <span class="demo-tag" style="background:var(--purple-soft);color:var(--purple)">🏨 4★ hotels</span>
+      <span class="demo-tag" style="background:var(--blue-soft);color:var(--blue)">⛴️ ferry ok</span>
+      <span class="demo-tag" style="background:var(--green-soft);color:var(--green)">🌊 beach vibe</span>
+    </div>
+
+    <div class="demo-row">
+      <div class="demo-card">
+        <b>Tool card shell</b>
+        <p>16px radius · purple-tinted shadow · spring lift on hover</p>
+      </div>
+      <div class="demo-card">
+        <b>Loading state</b>
+        <p>shimmer skeleton + search-progress pill</p>
+        <div class="shimmer-demo"></div>
+        <div class="shimmer-demo" style="width:70%"></div>
+        <div class="progress-demo"><span></span></div>
+      </div>
+      <div class="demo-card">
+        <b>Stress gauge</b>
+        <p>calm-green → busy-rose pips</p>
+        <div style="margin-top:10px" class="stress-pips"><i class="on-1"></i><i class="on-2"></i><i class="on-3"></i><i class="on-4"></i><i></i></div>
+        <p style="margin-top:6px"><b style="font-size:12px;color:var(--amber)">Busy</b></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DESIGN MATRIX -->
+  <section id="matrix">
+    <span class="eyebrow">Blueprint vs. built</span>
+    <h2>Design system matrix</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Attribute</th><th>Blueprint target</th><th>Currently implemented</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><b>Theme / vibe</b></td><td>"Joyful Pop"</td><td>"Joyful Pop"</td><td><span class="pill done">Completed</span></td></tr>
+          <tr><td><b>Color palette</b></td><td>Hot pink, purple, sky blue</td><td><span class="mono">#e040a0 · #7c52aa · #0096cc</span></td><td><span class="pill done">Completed</span></td></tr>
+          <tr><td><b>Typography</b></td><td>DM Sans</td><td>DM Sans via Google Fonts</td><td><span class="pill done">Completed</span></td></tr>
+          <tr><td><b>Corner radius</b></td><td>16–20px cards, pill tags</td><td>16px panels, fully-rounded tags</td><td><span class="pill done">Completed</span></td></tr>
+          <tr><td><b>Animations</b></td><td>Bouncy scale-up spring hover</td><td><code>.bouncy-hover</code> scale transition</td><td><span class="pill done">Completed</span></td></tr>
+          <tr><td><b>Shadows</b></td><td>Tinted color shadows</td><td>Pink/purple/blue at 20–35% opacity</td><td><span class="pill done">Completed</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- COMPONENT STATUS -->
+  <section id="components">
+    <span class="eyebrow">UI components</span>
+    <h2>Component status</h2>
+    <p class="lead">Every UI piece, where it lives, and what it does. All are shipped.</p>
+
+    <div class="feature"><span class="f-icon">🧭</span><div class="f-body"><b>Header & branding</b>
+      <p>Pink-shadowed button with an animated spinning compass next to the "Kompass" title, a gear button for settings, and a hamburger drawer toggle on mobile. <span class="tag">app-header.js</span></p></div><span class="pill done">Done</span></div>
+    <div class="feature"><span class="f-icon">💬</span><div class="f-body"><b>Chat window</b>
+      <p>CopilotKit v2 chat container with travel-specific titles and placeholders.</p></div><span class="pill done">Done</span></div>
+    <div class="feature"><span class="f-icon">🗂️</span><div class="f-body"><b>Trip sidebar</b>
+      <p>Two pill tabs — Trips (new / resume / delete) and Saved (bookmarks with destination, dates, stress dot, and total). <span class="tag">trip-sidebar.js</span> <span class="tag">saved-list.js</span></p></div><span class="pill done">Done</span></div>
+    <div class="feature"><span class="f-icon">🏷️</span><div class="f-body"><b>Preference badges card</b>
+      <p>Colorful pill tags for direct flights, hotel class, transit modes, vibes, and non-default currency. <span class="tag">preferences-card.js</span></p></div><span class="pill done">Done</span></div>
+    <div class="feature"><span class="f-icon">🙋</span><div class="f-body"><b>Clarifying-question card (HITL)</b>
+      <p>Question + candy option pills (single or multi-select) + an always-present "Other" free-text input; resolves to an "Answered" chip. <span class="tag">clarify-card.js</span></p></div><span class="pill done">Done · P10</span></div>
+    <div class="feature"><span class="f-icon">⚙️</span><div class="f-body"><b>Settings modal</b>
+      <p>Portal modal (bottom-sheet on mobile) editing the global travel profile with loading / saving / saved / error button states. <span class="tag">settings-modal.js</span></p></div><span class="pill done">Done · P10</span></div>
+    <div class="feature"><span class="f-icon">💫</span><div class="f-body"><b>Search progress</b>
+      <p>Animated candy-gradient pill sliding across a soft pink track, shown inside every loading tool card. <span class="tag">search-progress.js</span></p></div><span class="pill done">Done · P9</span></div>
+    <div class="feature"><span class="f-icon">⏳</span><div class="f-body"><b>Live chat status</b>
+      <p>Replaces CopilotKit's default loading dot with a pink pill showing a friendly, tool-specific label driven by the AG-UI run lifecycle — steps aside once real text streams. <span class="tag">chat-status.js</span></p></div><span class="pill done">Done</span></div>
+    <div class="feature"><span class="f-icon">✈️</span><div class="f-body"><b>Flight & cheapest-date cards</b>
+      <p>Live results with currency-aware prices and an <code>≈ approx</code> badge for estimates. <span class="tag">flights-card.js</span> <span class="tag">cheapest-dates-card.js</span></p></div><span class="pill done">Done</span></div>
+    <div class="feature"><span class="f-icon">🏨</span><div class="f-body"><b>Accommodations card</b>
+      <p>Live lodging with nightly + total rates, ratings, amenities, and booking links. <span class="tag">accommodations-card.js</span></p></div><span class="pill done">Done · P6</span></div>
+    <div class="feature"><span class="f-icon">🔎</span><div class="f-body"><b>Research card</b>
+      <p>Grounded web-search answers rendered as their own card (destination knowledge + ground-transport routing). <span class="tag">research-card.js</span></p></div><span class="pill done">Done</span></div>
+    <div class="feature"><span class="f-icon">⚖️</span><div class="f-body"><b>Scenario comparison cards</b>
+      <p>2–3 side-by-side cards: label + dates, hero total, Transport/Stay split, 5-pip stress gauge, highlight chips, leg summary, and "View details". Best-value and lowest-stress badges are derived client-side. <span class="tag">scenario-comparison-card.js</span></p></div><span class="pill done">Done · P5</span></div>
+    <div class="feature"><span class="f-icon">🔍</span><div class="f-body"><b>Scenario detail modal</b>
+      <p>Price + stress gauge, cost-breakdown bars, stress-factor tiles, per-direction travel timeline with connection chips and booking links, accommodation list, expandable day-by-day itinerary, reasoning, Save, and View-on-map.</p></div><span class="pill done">Done · P5–10</span></div>
+    <div class="feature"><span class="f-icon">📱</span><div class="f-body"><b>Responsive pass</b>
+      <p>3-pane split on desktop; full-width chat, off-canvas drawer, and bottom-sheet modals below <code>lg</code>.</p></div><span class="pill done">Done · P10</span></div>
+    <div class="feature"><span class="f-icon">🗺️</span><div class="f-body"><b>Map display</b>
+      <p>Split panel with itinerary summary over an interactive Google Map: numbered stops, stay markers, mode-colored polylines (geodesic flights), auto-fit bounds, cached client-side geocoding. Friendly placeholder without a key. <span class="tag">trip-panel.js</span> <span class="tag">trip-map.js</span></p></div><span class="pill done">Done · P8</span></div>
+    <div class="feature"><span class="f-icon">🖼️</span><div class="f-body"><b>Trip vibe backdrop</b>
+      <p>A self-healing, reusable backdrop image — hidden until it loads, silently hidden on 404 (not generated yet). Reused behind the sidebar row (fades left, 55%) and the scenario-detail header (fades bottom, full strength). <span class="tag">trip-backdrop.js</span></p></div><span class="pill done">Done</span></div>
+  </section>
+
+  <footer class="footer">
+    Full prose version: <a href="design.md">docs/design.md</a>
+  </footer>
+
+</div>
+</body>
+</html>

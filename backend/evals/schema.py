@@ -28,6 +28,7 @@ class Category(str, Enum):
     MANUAL_OVERRIDE = "manual_override"
     PARTY_PROPAGATION = "party_propagation"
     ITINERARY_QUALITY = "itinerary_quality"
+    HUMAN_IN_THE_LOOP = "human_in_the_loop"
 
 
 class CaseInputs(BaseModel):
@@ -40,6 +41,10 @@ class CaseInputs(BaseModel):
     # Scripted reply for the ask_clarifying_question HITL stub, if the model
     # asks despite a fully-specified prompt.
     clarifying_answer: str | None = None
+    # Follow-up turns for multi-turn refinement cases. Each is sent in order
+    # AFTER `prompt`, threading the prior turns' message_history through the
+    # same agent + fakes; evaluators score the FINAL turn's trace.
+    followups: list[str] = Field(default_factory=list)
 
 
 class CaseMeta(BaseModel):
@@ -59,12 +64,27 @@ class CaseMeta(BaseModel):
     # --- Constraint adherence ----------------------------------------------
     # Every scenario's grand_total must be <= this (traveler's currency).
     budget_cap: float | None = None
+    # Budget is deliberately infeasible: the agent must NOT emit an over-budget
+    # plan (either no scenarios, or every scenario within the cap) — used with
+    # `budget_cap` to reward honest refusal instead of a fabricated fit.
+    budget_infeasible: bool = False
     # Every search_flights call must pass max_stops == 0.
     direct_only: bool = False
     # Flight legs must depart in daytime hours (no red-eye / overnight).
     no_redeye: bool = False
     # passengers (flights) and guests (lodging) must equal this.
     party_size: int | None = None
+    # ISO currency code every scenario payload + flight search must use.
+    expect_currency: str | None = None
+    # Every produced scenario must carry this traveler count (payload-level;
+    # survives multi-turn party-size changes where earlier searches differ).
+    expect_travelers: int | None = None
+
+    # --- Human-in-the-loop --------------------------------------------------
+    # Required trip info is missing → the agent MUST ask_clarifying_question.
+    expect_clarification: bool = False
+    # The prompt is complete → the agent must NOT ask_clarifying_question.
+    forbid_clarification: bool = False
 
     # --- Anti-fabrication ---------------------------------------------------
     # Live data is empty → agent must fall back to search_web and flag prices
@@ -78,10 +98,18 @@ class CaseMeta(BaseModel):
     # --- Itinerary quality (island hopping / detailed plans) ---------------
     min_scenarios: int | None = None
     # Location/name keywords each expected to appear in the lodging list
-    # (e.g. every visited island has a hotel).
+    # (e.g. every visited island/city has a hotel).
     expect_islands: list[str] = Field(default_factory=list)
     # Minimum number of non-flight legs (ferries/trains/buses).
     min_ground_legs: int | None = None
+
+    # --- LLM-as-judge (soft criteria a Python assert can't capture) --------
+    # Judge the final reply is a concise recommendation (picks/justifies an
+    # option, next step), not a prose restatement of the day-by-day plan.
+    judge_recommendation: bool = False
+    # When set, judge that the day-by-day activities match this vibe
+    # (e.g. "relaxed foodie", "adventure hiking"). Empty = skip.
+    judge_vibe: str = ""
 
 
 class ToolCallTrace(BaseModel):

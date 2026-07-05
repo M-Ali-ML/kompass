@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kompass Docs — Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800;1,9..40,500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="compass">🧭</span> Kompass Docs</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a>
+      <a href="index.html#flow">Flow Demo</a>
+      <a href="architecture.html" class="active">Architecture</a>
+      <a href="product.html">Product</a>
+      <a href="design.html">Design</a>
+      <a href="user-stories.html">User Stories</a>
+      <a href="evals.html">Evals</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow">System architecture · as built, Phase 10</span>
+    <h1 class="page-title">A hexagonal core with a <span class="grad">streaming face</span></h1>
+    <p class="lead">Python FastAPI backend + Next.js frontend, joined by the AG-UI protocol and CopilotKit. The backend
+    follows ports & adapters: the agent and domain models sit in the middle, and everything replaceable — prompts,
+    flights, hotels, persistence — plugs in from the edges.</p>
+  </header>
+
+  <!-- FULL SYSTEM MAP -->
+  <section id="map">
+    <span class="eyebrow">System map</span>
+    <h2>Every moving part, top to bottom</h2>
+    <div class="lanes">
+      <div class="lane l-front">
+        <div class="lane-head"><span class="lane-tag">Frontend</span><span class="lane-sub">Next.js App Router · CopilotKit v2 · Tailwind v4 "Candy"</span></div>
+        <div class="nodes">
+          <div class="node">page.js<small>header · sidebar · chat · map split-panel</small></div>
+          <div class="node">use-trip-tools.js<small>registers 8 card renderers + HITL tool</small></div>
+          <div class="node">use-active-trip.js<small>thread id sync · history rehydration</small></div>
+          <div class="node">Settings modal<small>global profile editor</small></div>
+        </div>
+      </div>
+      <div class="flow-arrow">⬇ SSE streaming · AG-UI protocol ⬇</div>
+      <div class="lane l-api">
+        <div class="lane-head"><span class="lane-tag">FastAPI</span><span class="lane-sub">main.py lifespan: telemetry → init_db → MCP clients</span></div>
+        <div class="nodes">
+          <div class="node">POST /api/copilotkit<small>merge prefs · upsert trip · run agent</small></div>
+          <div class="node">/api/trips + /messages<small>list · resume · persist AG-UI history</small></div>
+          <div class="node">/api/trips/{id}/background.img<small>serves the generated vibe image</small></div>
+          <div class="node">/api/saved-scenarios<small>save · list · delete bookmarks</small></div>
+          <div class="node">/api/profile<small>global preferences GET/PUT</small></div>
+          <div class="node">/health<small>health check</small></div>
+        </div>
+      </div>
+      <div class="flow-arrow">⬇</div>
+      <div class="lane l-agent">
+        <div class="lane-head"><span class="lane-tag">PydanticAI agent</span><span class="lane-sub">agent.py · output: str · temp 0.2 · thinking off · Gemini 2.5 Flash</span></div>
+        <div class="nodes">
+          <div class="node">gather_preferences<small>layered via merged_with()</small></div>
+          <div class="node">find_cheapest_dates<small>concurrent ±3-day flex sampling</small></div>
+          <div class="node">search_flights<small>Kiwi MCP + client-side filters</small></div>
+          <div class="node">search_accommodations<small>max_price · min_rating</small></div>
+          <div class="node">search_web<small>grounded research sub-agent</small></div>
+          <div class="node">search_ground_transport<small>train · bus · ferry routing</small></div>
+          <div class="node">generate_scenarios<small>2–3 validated, refinable scenarios</small></div>
+          <div class="node">ask_clarifying_question<small>frontend HITL — run pauses for the answer</small></div>
+          <div class="node">set_background_image<small>fire-and-forget vibe image refresh</small></div>
+        </div>
+      </div>
+      <div class="flow-arrow">⬇ ports & adapters ⬇</div>
+      <div class="lane l-ext">
+        <div class="lane-head"><span class="lane-tag">Adapters & data</span><span class="lane-sub">everything swappable lives here</span></div>
+        <div class="nodes">
+          <div class="node">Kiwi.com MCP<small>remote streamable HTTP · no key</small></div>
+          <div class="node">Accommodations MCP<small>local stdio · SerpApi Google Hotels</small></div>
+          <div class="node">Gemini grounding<small>research + fallback prices</small></div>
+          <div class="node">Gemini image model<small>per-trip vibe backgrounds</small></div>
+          <div class="node">SQLite (aiosqlite)<small>trips · messages · profile · saved · backgrounds</small></div>
+          <div class="node">File prompts<small>system + research markdown</small></div>
+          <div class="node">Langfuse<small>OTel spans per run</small></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HEXAGONAL BACKEND -->
+  <section id="hex">
+    <span class="eyebrow">Backend</span>
+    <h2>Ports & adapters, concretely</h2>
+    <p class="lead">Each capability is a small interface (port) in <code>backend/app/ports/</code> with one adapter
+    implementation in <code>backend/app/adapters/</code>. The agent only ever sees the port.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Capability</th><th>Port</th><th>Adapter</th><th>Backed by</th></tr></thead>
+        <tbody>
+          <tr><td><b>Prompts</b></td><td><code>PromptServicePort</code></td><td><code>FilePromptService</code></td><td>Markdown files on disk</td></tr>
+          <tr><td><b>Flights</b></td><td><code>FlightServicePort</code></td><td><code>KiwiMCPFlightServiceAdapter</code></td><td>Remote Kiwi.com MCP (streamable HTTP)</td></tr>
+          <tr><td><b>Accommodations</b></td><td><code>AccommodationServicePort</code></td><td><code>MCPAccommodationServiceAdapter</code></td><td>Local FastMCP stdio server → SerpApi Google Hotels</td></tr>
+          <tr><td><b>Research</b></td><td><code>ResearchServicePort</code></td><td><code>GroundedResearchService</code></td><td>research_agent.py sub-agent (Gemini grounding)</td></tr>
+          <tr><td><b>Trips</b></td><td><code>TripRepository</code></td><td><code>SqliteTripRepository</code></td><td>SQLAlchemy async + aiosqlite</td></tr>
+          <tr><td><b>Profile</b></td><td><code>UserProfileRepository</code></td><td><code>SqliteUserProfileRepository</code></td><td>Singleton row in SQLite</td></tr>
+          <tr><td><b>Saved scenarios</b></td><td><code>SavedScenarioRepository</code></td><td><code>SqliteSavedScenarioRepository</code></td><td>Scenario JSON + denormalized columns</td></tr>
+          <tr><td><b>Trip backgrounds</b></td><td><code>TripBackgroundRepository</code></td><td><code>SqliteTripBackgroundRepository</code></td><td>Image bytes + generation-lock status in SQLite</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout"><b>Why it matters:</b> swapping Kiwi for another flight source, or SQLite for Postgres, means
+    writing one new adapter — the agent, tools, and API never change.</div>
+  </section>
+
+  <!-- DOMAIN MODELS -->
+  <section id="domain">
+    <span class="eyebrow">Domain</span>
+    <h2>The models the agent thinks in</h2>
+    <div class="grid cols-3">
+      <div class="card"><div class="icon i-pink">🧳</div><h3>TripRequest & UserPreferences</h3>
+        <p>Destination, duration, month, budget, travelers — plus home city, direct-flights-only, transit modes, hotel
+        class, vibe tags, currency. Preferences layer with <code>merged_with()</code>: global profile first, conversation on top.</p></div>
+      <div class="card"><div class="icon i-purple">🛫</div><h3>Itinerary & Legs</h3>
+        <p><code>Leg</code> carries a <code>TransportMode</code> (flight / train / bus / ferry / car), times and fares.
+        <code>DaySummary</code> gives each day a title and a time-blocked schedule of <code>PlanItem</code>s.</p></div>
+      <div class="card"><div class="icon i-blue">⚖️</div><h3>Scenario & scoring</h3>
+        <p>Each <code>Scenario</code> bundles an itinerary with a <code>CostBreakdown</code> (transport / stay / grand total)
+        and <code>StressFactors</code> (layovers, overnight travel, tight connections, total hours) → a 1–5 stress score
+        <span class="stress-pips"><i class="on-1"></i><i class="on-2"></i><i class="on-3"></i><i></i><i></i></span>.</p></div>
+      <div class="card"><div class="icon i-blue">✈️</div><h3>FlightOption & FlightDateOption</h3>
+        <p>Live results incl. a <code>booking_link</code> deep link and a routing-label airline (Kiwi exposes no carrier name).
+        Date options power the cheapest-dates card.</p></div>
+      <div class="card"><div class="icon i-pink">🏨</div><h3>AccommodationOption</h3>
+        <p>Name, property type, nightly + total rate, currency, rating, reviews, hotel class, amenities, link,
+        coordinates, and an <code>estimated</code> flag when values are approximate.</p></div>
+      <div class="card"><div class="icon i-purple">🗄️</div><h3>ORM models</h3>
+        <p><code>Trip</code> (with a full AG-UI <code>message_history</code> JSON column), <code>Message</code>,
+        <code>UserProfile</code> singleton, <code>SavedScenario</code>, and <code>TripBackground</code> (generated vibe
+        image + a pending/ready/error lock) — all on a shared SQLAlchemy metadata.</p></div>
+    </div>
+  </section>
+
+  <!-- AGENT LAYER -->
+  <section id="agent">
+    <span class="eyebrow">Agent layer</span>
+    <h2>One agent, two sub-agents, nine tools</h2>
+    <p class="lead">The main agent orchestrates; a research sub-agent handles Google-grounded search (Gemini won't
+    reliably combine grounding with function tools and structured output in a single call), and a second, purely
+    fire-and-forget sub-agent paints each trip's vibe background image.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tool</th><th>What it does</th><th>Data source</th><th>Fallback</th></tr></thead>
+        <tbody>
+          <tr><td><code>gather_preferences</code></td><td>Extracts and persists traveler preferences to the global profile</td><td>Conversation</td><td>—</td></tr>
+          <tr><td><code>find_cheapest_dates</code></td><td>Samples a month with concurrent ±3-day flex searches, keeps the cheapest fare per departure date</td><td>Kiwi.com MCP</td><td><code>search_web</code></td></tr>
+          <tr><td><code>search_flights</code></td><td>Live flight options; <code>max_stops</code> / time-of-day filters applied client-side</td><td>Kiwi.com MCP</td><td><code>search_web</code></td></tr>
+          <tr><td><code>search_accommodations</code></td><td>Live hotels/rentals with nightly + total rates, honoring <code>max_price</code> / <code>min_rating</code></td><td>SerpApi Google Hotels MCP</td><td><code>search_web</code></td></tr>
+          <tr><td><code>search_web</code></td><td>Grounded destination research and the universal price fallback</td><td>Gemini Google grounding</td><td>—</td></tr>
+          <tr><td><code>search_ground_transport</code></td><td>Train/bus/ferry routing: operators, times, duration, frequency, fare range</td><td>Research sub-agent</td><td>—</td></tr>
+          <tr><td><code>generate_scenarios</code></td><td>Renders 2–3 validated scenarios; recomputes totals, enforces a complete day-by-day plan, supports targeted refinement by label</td><td>Agent-built</td><td>—</td></tr>
+          <tr><td><code>ask_clarifying_question</code></td><td>Frontend human-in-the-loop card — pauses the run until the traveler answers</td><td>CopilotKit <code>useHumanInTheLoop</code></td><td>—</td></tr>
+          <tr><td><code>set_background_image</code></td><td>Only on an explicit request to change the vibe image — kicks off a forced regeneration</td><td>Image sub-agent</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid cols-2">
+      <div class="card"><div class="icon i-purple">🧠</div><h3>System prompt</h3>
+        <p>Dynamic, but injects only the current <em>date</em> (day granularity) so the KV-cache prefix stays stable.
+        Encodes seasonality reasoning, multi-modal sequencing with transfer buffers, round-trip-by-default, stress
+        scoring heuristics, manual-override rules, and the scenario-comparison contract.</p></div>
+      <div class="card"><div class="icon i-blue">📡</div><h3>Observability</h3>
+        <p>Langfuse v4 over OpenTelemetry: <code>Agent.instrument_all()</code> traces every run (LLM calls, tool
+        inputs/outputs) grouped per trip via <code>session_id</code>. Fully no-op when keys are absent.</p></div>
+      <div class="card"><div class="icon i-pink">🖼️</div><h3>Background-image sub-agent</h3>
+        <p><code>image_agent.py</code> mirrors the research sub-agent's isolation: a cheap <code>scene_agent</code> turns
+        the conversation + vibe tags into a destination + scene prompt, a Gemini image model renders it, and the
+        result is downscaled to WebP and stored — never on the main request path.</p></div>
+      <div class="card"><div class="icon i-green">🧪</div><h3>Eval suite</h3>
+        <p><code>backend/evals/</code> runs the real agent + prompt headlessly against deterministic fixtures — 30
+        cases, 10 evaluators, an LLM-as-judge for soft criteria, and a live dashboard. Full reference:
+        <a href="evals.html">evals.html</a> / <a href="evals.md">evals.md</a>.</p></div>
+    </div>
+  </section>
+
+  <!-- PERSISTENCE -->
+  <section id="persistence">
+    <span class="eyebrow">Persistence</span>
+    <h2>Five tables that make it feel personal</h2>
+    <div class="grid cols-4">
+      <div class="card"><h3>trips</h3><p>One row per conversation thread. Carries the <b>full AG-UI history</b> —
+        user/assistant/tool turns incl. tool calls + results — so generative-UI cards rehydrate on reload.</p></div>
+      <div class="card"><h3>messages</h3><p>Flattened plain-text turns (legacy/fallback), cascade-deleted with the trip.</p></div>
+      <div class="card"><h3>user_profiles</h3><p>Singleton of global preferences — loaded as the baseline for every run,
+        editable in the settings modal.</p></div>
+      <div class="card"><h3>saved_scenarios</h3><p>Bookmarked scenarios: full Scenario JSON plus queryable columns
+        (destination, total, stress, dates). <code>trip_id</code> is SET NULL so saves outlive a deleted conversation.</p></div>
+      <div class="card"><h3>trip_backgrounds</h3><p>One row per trip (cascade-deleted with it): generated image bytes +
+        MIME type, the scene it came from, and a pending/ready/error status that doubles as a generation lock.</p></div>
+    </div>
+  </section>
+
+  <!-- FRONTEND -->
+  <section id="frontend">
+    <span class="eyebrow">Frontend</span>
+    <h2>Chat in the middle, context on both sides</h2>
+    <p class="lead">Desktop shows a 3-pane split — trip sidebar · chat · live map. Below <code>lg</code> the chat goes
+    full-width, the sidebar becomes an off-canvas drawer, and modals become bottom-sheets.</p>
+    <div class="grid cols-3">
+      <div class="card"><div class="icon i-pink">🃏</div><h3>Generative-UI cards</h3>
+        <p>preferences · clarify (HITL) · cheapest-dates · flights · accommodations · research · ground-transport ·
+        scenario-comparison. Loading states show an animated candy search-progress pill; between tool calls a
+        pink status pill (<code>chat-status.js</code>) replaces the default loading dot.</p></div>
+      <div class="card"><div class="icon i-purple">🔍</div><h3>Scenario detail modal</h3>
+        <p>Price + stress gauge, cost-breakdown bars, stress-factor tiles, a per-direction travel timeline with
+        layover/overnight/tight chips and booking links, an expandable day-by-day itinerary, and Save / View-on-map actions.</p></div>
+      <div class="card"><div class="icon i-blue">🗺️</div><h3>Interactive map</h3>
+        <p>Built on <code>@vis.gl/react-google-maps</code>: numbered stops, accommodation markers, mode-colored polylines
+        (geodesic for flights), auto-fit bounds. Client-side geocoding with a <code>localStorage</code> cache; degrades
+        to a friendly placeholder without a key.</p></div>
+      <div class="card"><div class="icon i-pink">🖼️</div><h3>Trip vibe backdrop</h3>
+        <p><code>trip-backdrop.js</code> — a self-healing image that fades in only once the generated background loads,
+        and stays invisible on a 404. Reused behind the sidebar row and the scenario-detail modal header.</p></div>
+    </div>
+  </section>
+
+  <!-- TESTING -->
+  <section id="testing">
+    <span class="eyebrow">Quality</span>
+    <h2>Tested at every layer</h2>
+    <div class="grid cols-3">
+      <div class="card"><div class="icon i-green">🐍</div><h3>pytest</h3><p>Domain, dependency injection, persistence,
+        agent, and REST routes via <code>TestClient</code> + dependency overrides against an isolated SQLite DB.</p></div>
+      <div class="card"><div class="icon i-green">⚡</div><h3>Vitest</h3><p>Frontend unit tests for the itinerary helpers.</p></div>
+      <div class="card"><div class="icon i-green">🎭</div><h3>Playwright</h3><p>End-to-end specs: API, persistence,
+        saved scenarios, and settings flows.</p></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    Full prose version: <a href="architecture.md">docs/architecture.md</a>
+  </footer>
+
+</div>
+</body>
+</html>

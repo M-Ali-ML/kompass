@@ -21,6 +21,7 @@
     --blue-soft:#dcf1fb;
     --green:#16a06a;
     --amber:#e89b1c;
+    --amber-soft:#fdf0da;
     --card:#ffffff;
     --line:#f1d9ec;
     --shadow-pink:0 14px 40px -18px rgba(224,64,160,.45);
@@ -233,6 +234,17 @@
   .st li{padding:2px 0}
   .st li::before{content:"›";color:var(--pink);font-weight:800;margin-right:7px}
 
+  /* ---------- QUICK STATS + DOC CARDS ---------- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:8px}
+  @media (max-width:820px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{border:1px solid var(--line);background:var(--card);border-radius:var(--r);padding:16px;text-align:center;box-shadow:var(--shadow-soft)}
+  .stat .num{font-size:30px;font-weight:800;letter-spacing:-1.5px;
+    background:linear-gradient(115deg,var(--pink),var(--purple));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .stat .lbl{font-size:11.5px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
+  .doc-link{display:block;color:inherit;cursor:pointer}
+  .doc-link:hover{text-decoration:none;transform:translateY(-4px);box-shadow:var(--shadow-pink)}
+  .doc-link .go{margin-top:10px;font-size:13px;font-weight:700;color:var(--pink)}
+
   footer{text-align:center;margin-top:60px;padding:30px;color:var(--ink-soft);font-size:13px;border-top:1px solid var(--line)}
 
   @media(max-width:860px){
@@ -258,6 +270,7 @@
     </div>
     <div class="nav-links" id="navlinks">
       <a href="#overview" class="active">Overview</a>
+      <a href="#docs">Docs</a>
       <a href="#architecture">Architecture</a>
       <a href="#flow">The Flow</a>
       <a href="#toolbelt">Toolbelt</a>
@@ -273,16 +286,65 @@
 <header class="wrap hero" id="overview">
   <span class="eyebrow">⊹ The Autonomous AI Travel Architect</span>
   <h1>The whole flow of <span class="grad">Kompass</span>,<br/>visualized piece by piece</h1>
-  <p>One message in chat fans out into a thinking agent, two MCP servers, a grounded research sub-agent, a stress-scored set of trip scenarios, and a live map — all streamed back to you in real time. Here's exactly how a request travels through the system.</p>
+  <p>One message in chat fans out into a planning agent, two MCP servers, a grounded research sub-agent, a stress-scored set of trip scenarios, and a live map — all streamed back to you in real time. Here's exactly how a request travels through the system.</p>
   <div class="hero-chips">
     <span class="chip">⚡ <b>FastAPI</b> + PydanticAI</span>
-    <span class="chip">🤖 Gemini 2.5 Pro <b>(thinking)</b></span>
+    <span class="chip">🤖 Gemini 2.5 Flash</span>
     <span class="chip">🔌 <b>AG-UI</b> over SSE</span>
     <span class="chip">🎨 Next.js 16 + <b>CopilotKit</b></span>
     <span class="chip">🗺️ <b>Google Maps</b> route plotting</span>
   </div>
   <div class="scroll-cue">▾ explore the system</div>
 </header>
+
+<!-- QUICK STATS -->
+<section class="wrap" id="numbers" style="padding-top:0;padding-bottom:0">
+  <div class="stats">
+    <div class="stat"><div class="num">10/10</div><div class="lbl">Phases shipped</div></div>
+    <div class="stat"><div class="num">9</div><div class="lbl">Agent tools</div></div>
+    <div class="stat"><div class="num">8+1</div><div class="lbl">Cards + HITL</div></div>
+    <div class="stat"><div class="num">16</div><div class="lbl">User stories done</div></div>
+  </div>
+</section>
+
+<!-- DOC PAGES -->
+<section class="wrap" id="docs">
+  <span class="eyebrow">00 — Prefer to read?</span>
+  <h2>The full written docs</h2>
+  <p class="lead">Everything this page shows interactively is also written up as reference pages — the feature tracker, the design system, and the full user-story matrix.</p>
+  <div class="grid g-src">
+    <a class="src-card doc-link" href="architecture.html">
+      <span class="badge" style="background:var(--purple-soft);color:var(--purple)">Reference</span>
+      <h4>🏗️ Architecture</h4>
+      <p>Hexagonal backend, agent tools, MCP integrations, persistence, and the frontend component map.</p>
+      <div class="go">Explore the system →</div>
+    </a>
+    <a class="src-card doc-link" href="product.html">
+      <span class="badge" style="background:var(--pink-soft);color:var(--pink)">Reference</span>
+      <h4>🚀 Product</h4>
+      <p>Every shipped feature across 8 categories, with the phase that delivered it.</p>
+      <div class="go">See the feature tracker →</div>
+    </a>
+    <a class="src-card doc-link" href="design.html">
+      <span class="badge" style="background:var(--blue-soft);color:var(--blue)">Reference</span>
+      <h4>🎨 Design</h4>
+      <p>The Candy theme: live color swatches, typography, motion, and UI component status.</p>
+      <div class="go">Browse the design system →</div>
+    </a>
+    <a class="src-card doc-link" href="user-stories.html">
+      <span class="badge" style="background:#dcf7ea;color:var(--green)">Reference</span>
+      <h4>✅ User Stories</h4>
+      <p>All 16 stories from the product spec, each with its status and how it shipped.</p>
+      <div class="go">Check the story matrix →</div>
+    </a>
+    <a class="src-card doc-link" href="evals.html">
+      <span class="badge" style="background:var(--amber-soft);color:var(--amber)">Reference</span>
+      <h4>🧪 Eval Learnings Log</h4>
+      <p>What running a real LLM eval suite actually found — regressions caught, root causes, and fixes, updated live.</p>
+      <div class="go">Read the log →</div>
+    </a>
+  </div>
+</section>
 
 <!-- ARCHITECTURE -->
 <section class="wrap" id="architecture">
@@ -311,10 +373,10 @@
     </div>
     <div class="flow-arrow">⇅</div>
     <div class="lane l-agent">
-      <div class="lane-head"><span class="lane-tag">Agent</span><span class="lane-sub">PydanticAI · Gemini 2.5 Pro · thinking mode</span></div>
+      <div class="lane-head"><span class="lane-tag">Agent</span><span class="lane-sub">PydanticAI · Gemini 2.5 Flash</span></div>
       <div class="nodes" data-lane="agent">
-        <div class="node" data-k="kompass">kompass_agent<small>output: str | Scenario</small></div>
-        <div class="node" data-k="tools">8 agent tools<small>the toolbelt</small></div>
+        <div class="node" data-k="kompass">kompass_agent<small>output: str</small></div>
+        <div class="node" data-k="tools">9 agent tools<small>the toolbelt</small></div>
         <div class="node" data-k="research">research sub-agent<small>Gemini grounding</small></div>
       </div>
     </div>
@@ -474,12 +536,12 @@
   <span class="eyebrow">07 — Under the hood</span>
   <h2>The tech stack</h2>
   <div class="stackgrid">
-    <div class="st"><b>Backend</b><ul><li>FastAPI</li><li>PydanticAI</li><li>Gemini 2.5 Pro</li><li>Python 3.14 · uv</li></ul></div>
+    <div class="st"><b>Backend</b><ul><li>FastAPI</li><li>PydanticAI</li><li>Gemini 2.5 Flash</li><li>Python 3.14 · uv</li></ul></div>
     <div class="st"><b>Protocol</b><ul><li>AG-UI over SSE</li><li>MCP (HTTP + stdio)</li><li>OpenTelemetry</li></ul></div>
     <div class="st"><b>Frontend</b><ul><li>Next.js 16</li><li>React 19</li><li>CopilotKit v2</li><li>Tailwind CSS v4</li></ul></div>
     <div class="st"><b>Data & maps</b><ul><li>SQLite + SQLAlchemy</li><li>aiosqlite (async)</li><li>@vis.gl/react-google-maps</li></ul></div>
     <div class="st"><b>Observability</b><ul><li>Langfuse v4</li><li>per-trip session traces</li><li>no-op without keys</li></ul></div>
-    <div class="st"><b>Quality</b><ul><li>pytest (backend)</li><li>Vitest (units)</li><li>Playwright (e2e)</li></ul></div>
+    <div class="st"><b>Quality</b><ul><li>pytest (backend)</li><li>Vitest (units)</li><li>Playwright (e2e)</li><li>Agent evals (evals/)</li></ul></div>
   </div>
 </section>
 
@@ -498,8 +560,8 @@ const NODE = {
   copilot:{t:"POST /api/copilotkit",d:"The streaming heart: rebuilds effective preferences, upserts the trip, dispatches the agent to the AG-UI stream, and persists messages on completion.",f:["api/routes.py"]},
   rest:{t:"REST endpoints",d:"Trip sessions, the global profile, and saved scenarios — the CRUD that backs memory and the sidebar.",f:["api/routes.py","lib/trips-api.js"]},
   db:{t:"SQLite persistence",d:"trips (with full AG-UI message_history), user_profiles singleton, and saved_scenarios — via async SQLAlchemy.",f:["db.py","adapters/sqlite_*"]},
-  kompass:{t:"kompass_agent",d:"The PydanticAI agent. output_type = Union[str, Scenario], deps_type = AgentDependencies, thinking mode on.",f:["agent/agent.py"]},
-  tools:{t:"Agent tools",d:"gather_preferences, find_cheapest_dates, search_flights, search_accommodations, search_web, search_ground_transport, generate_scenarios, ask_clarifying_question.",f:["agent/agent.py"]},
+  kompass:{t:"kompass_agent",d:"The PydanticAI agent. output_type = str, deps_type = AgentDependencies, temperature 0.2, thinking disabled (avoids Flash spending its budget 'thinking' and returning empty on large contexts).",f:["agent/agent.py"]},
+  tools:{t:"Agent tools",d:"gather_preferences, find_cheapest_dates, search_flights, search_accommodations, search_web, search_ground_transport, generate_scenarios, ask_clarifying_question, set_background_image.",f:["agent/agent.py"]},
   research:{t:"Research sub-agent",d:"An isolated agent using Gemini Google Search grounding — destination knowledge, ground-transport routing, and price fallback.",f:["agent/research_agent.py"]},
   kiwi:{t:"Kiwi.com MCP",d:"Remote, streamable-HTTP MCP. No API key. Live structured flights + concurrent cheapest-date sampling.",f:["adapters/mcp_flight_service.py"]},
   serp:{t:"SerpApi Hotels MCP",d:"Local stdio FastMCP server wrapping SerpApi Google Hotels. Rates, ratings, amenities, links.",f:["mcp_servers/accommodations_server.py"]},
@@ -553,14 +615,15 @@ trip  = <span class="m">upsert_trip</span>(thread_id)
 run   = agent.<span class="m">run_ag_ui</span>(deps=...)`,
    f:["api/routes.py","user_preferences.py"]},
 
-  {t:"Launch the agent",sub:"Gemini, thinking on",layer:"agent",lit:[false,true,true,false],
-   narr:"The PydanticAI kompass_agent starts with output_type = str | Scenario and thinking enabled. AgentDependencies injects the prompt service, repositories, and the flight/accommodation services it can reach for.",
+  {t:"Launch the agent",sub:"Gemini Flash, thinking off",layer:"agent",lit:[false,true,true,false],
+   narr:"The PydanticAI kompass_agent starts with output_type = str (plans always render via generate_scenarios) and thinking disabled, so Flash doesn't burn its budget 'thinking' on a large context. AgentDependencies injects the prompt service, repositories, and the flight/accommodation/research services it can reach for.",
    code:`<span class="c"># agent/agent.py</span>
 kompass_agent = <span class="m">Agent</span>(
   model=<span class="s">"google:gemini-2.5-flash"</span>,
-  output_type=<span class="k">Union</span>[str, Scenario],
+  output_type=<span class="k">str</span>,
   deps_type=AgentDependencies,
-  model_settings={<span class="s">"thinking"</span>: <span class="k">True</span>},
+  retries={<span class="s">"tools"</span>: 2, <span class="s">"output"</span>: 2},
+  model_settings={<span class="s">"temperature"</span>: 0.2, <span class="s">"thinking"</span>: <span class="k">False</span>},
 )`,
    f:["agent/agent.py","agent/dependency.py"]},
 
@@ -684,6 +747,7 @@ const TOOLS = [
   {n:"search_web",i:"🔎",bg:"var(--blue)",src:"Gemini grounding",d:"The grounded research sub-agent — destination knowledge and the universal price fallback.",x:"Isolated agent: Gemini won't reliably mix grounding with structured output in one call.",card:"research-card"},
   {n:"search_ground_transport",i:"🚆",bg:"var(--green)",src:"Gemini grounding",d:"Grounded train / bus / ferry routing — operators, times, duration, frequency, fare range.",x:"Feeds non-flight Legs and onward hops sequenced after flights with transfer buffers.",card:"ground-transport-card"},
   {n:"generate_scenarios",i:"⚖️",bg:"linear-gradient(135deg,var(--pink),var(--purple))",src:"Agent",d:"Builds 2–3 comparable Scenarios with recomputed totals, stress scores, and a full day-by-day plan.",x:"Validates 2–3 scenarios and complete day coverage; supports targeted single-scenario refinement.",card:"scenario-comparison-card"},
+  {n:"set_background_image",i:"🖼️",bg:"var(--green)",src:"Image sub-agent",d:"Only called on an explicit request to change the trip's vibe background — kicks off a forced regeneration.",x:"Fire-and-forget: a Gemini image model paints the scene, stored via TripBackgroundRepository; never blocks the chat reply.",card:"trip-backdrop.js (no dedicated tool card)"},
 ];
 const tg = document.getElementById('toolgrid');
 TOOLS.forEach(t=>{

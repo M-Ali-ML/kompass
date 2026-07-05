@@ -68,13 +68,18 @@ llm_model = settings.llm_model
 # than a `Union[str, Scenario]` — avoids registering a second `final_result`
 # output tool that would re-ship the full nested Scenario JSON schema (~2k
 # tokens) on every request for a structured-output path the app never renders.
-# `retries={'tools': 2}` covers tool-output validation (e.g. generate_scenarios
-# re-calls on an incomplete day plan).
+# `retries={'tools': 2, 'output': 2}`: `tools` covers tool-output validation
+# (e.g. generate_scenarios re-calls on an incomplete day plan); `output` (raised
+# from the default 1) covers the TEXT path — on a large final-synthesis context
+# Flash intermittently returns an empty completion with no first token, and one
+# retry isn't always enough to recover. The eval variance study surfaced this as
+# `UnexpectedModelBehavior: Exceeded maximum output retries (1)` on the heaviest
+# single-plan cases (12-day island hop, detailed foodie/hiking days).
 kompass_agent = Agent(
     llm_model,
     deps_type=AgentDependencies,
     output_type=str,
-    retries={'tools': 2},
+    retries={'tools': 2, 'output': 2},
     # Low temperature for more deterministic, instruction-following behavior —
     # in particular, reliably calling `ask_clarifying_question` for concrete
     # questions rather than drifting into plain-text prose. (Merged with the

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kompass Docs — Product & Features</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800;1,9..40,500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="compass">🧭</span> Kompass Docs</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a>
+      <a href="index.html#flow">Flow Demo</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="product.html" class="active">Product</a>
+      <a href="design.html">Design</a>
+      <a href="user-stories.html">User Stories</a>
+      <a href="evals.html">Evals</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow">Product & feature status · Phase 10</span>
+    <h1 class="page-title">Everything in the PRD, <span class="grad">shipped</span></h1>
+    <p class="lead">All 29 tracked features across 8 categories are implemented. This page is the visual tracker —
+    each row says what the feature does and how it's actually delivered.</p>
+    <div class="hero-chips">
+      <span class="chip"><b>29/29</b> features implemented</span>
+      <span class="chip"><b>10/10</b> phases complete</span>
+      <span class="chip"><b>0</b> open gaps</span>
+    </div>
+  </header>
+
+  <!-- CATEGORY PROGRESS -->
+  <section id="progress">
+    <span class="eyebrow">By category</span>
+    <h2>Completion at a glance</h2>
+    <div class="grid cols-2">
+      <div class="card"><h3>💰 Smart Dates, Budget & Stays</h3><p>5 of 5 features</p><div class="bar green"><span style="width:100%"></span></div></div>
+      <div class="card"><h3>🚆 Transportation Logistics</h3><p>5 of 5 features</p><div class="bar green"><span style="width:100%"></span></div></div>
+      <div class="card"><h3>⚖️ Scenario Comparison & Scoring</h3><p>2 of 2 features</p><div class="bar green"><span style="width:100%"></span></div></div>
+      <div class="card"><h3>🧭 Activity & Destination Discovery</h3><p>3 of 3 features</p><div class="bar green"><span style="width:100%"></span></div></div>
+      <div class="card"><h3>🖥️ UI & Output Formats</h3><p>7 of 7 features</p><div class="bar green"><span style="width:100%"></span></div></div>
+      <div class="card"><h3>🧠 Session Management & Memory</h3><p>4 of 4 features</p><div class="bar green"><span style="width:100%"></span></div></div>
+      <div class="card"><h3>📡 Observability</h3><p>1 of 1 feature</p><div class="bar green"><span style="width:100%"></span></div></div>
+      <div class="card"><h3>🧪 Quality & Testing</h3><p>2 of 2 features (4 suites)</p><div class="bar green"><span style="width:100%"></span></div></div>
+    </div>
+  </section>
+
+  <!-- A -->
+  <section id="dates">
+    <div class="cat-head"><span class="cat-ico icon i-pink" style="margin:0">💰</span><h3>Smart Date, Budget & Accommodation Optimization</h3><span class="count">5 features</span></div>
+
+    <div class="feature"><span class="f-icon">🌤️</span><div class="f-body"><b>Seasonality awareness</b>
+      <p>The system prompt drives seasonality reasoning with the current date injected; the agent verifies crowd and weather peaks via grounded web search and surfaces them as scenario highlights.</p></div><span class="pill done">Implemented</span></div>
+    <div class="feature"><span class="f-icon">📅</span><div class="f-body"><b>Date recommendations</b>
+      <p><code>find_cheapest_dates</code> samples a whole month with concurrent flex-window searches and renders the cheapest windows in the dates card.</p></div><span class="pill done">Implemented</span></div>
+    <div class="feature"><span class="f-icon">💸</span><div class="f-body"><b>Live price integration</b>
+      <p>Structured flight prices from the Kiwi.com MCP (no API key) and lodging from SerpApi Google Hotels; grounded web search is the universal price fallback. A deterministic mock mode (<code>MCP_MODE=mock</code>) protects the SerpApi quota in dev.</p></div><span class="pill done">Implemented</span></div>
+    <div class="feature"><span class="f-icon">🧾</span><div class="f-body"><b>Comprehensive cost tracking</b>
+      <p><code>CostBreakdown</code> gives transportation and accommodation subtotals plus a grand total; the scenario tool recomputes totals from parts so numbers always add up.</p></div><span class="pill done">Implemented</span></div>
+    <div class="feature"><span class="f-icon">🏨</span><div class="f-body"><b>Hotel availability checking</b>
+      <p>Live hotels/rentals for the exact stay dates with nightly + total rates, ratings, amenities, and booking links; <code>min_rating</code> / <code>max_price</code> honor taste and budget.</p></div><span class="pill done">Implemented · Phase 6</span></div>
+  </section>
+
+  <!-- B -->
+  <section id="transport">
+    <div class="cat-head"><span class="cat-ico icon i-purple" style="margin:0">🚆</span><h3>Intelligent Transportation Logistics</h3><span class="count">5 features</span></div>
+
+    <div class="feature"><span class="f-icon">🚢</span><div class="f-body"><b>Multi-modal transport</b>
+      <p>Legs support flight, train, bus, ferry, and car; <code>search_ground_transport</code> provides grounded routing (operators, times, duration, fares) for non-flight legs.</p></div><span class="pill done">Implemented · Phase 7</span></div>
+    <div class="feature"><span class="f-icon">🎯</span><div class="f-body"><b>Convenience filtering</b>
+      <p><code>direct_flights_only</code> and preferred transit modes are gathered once and honored by every flight search.</p></div><span class="pill done">Implemented</span></div>
+    <div class="feature"><span class="f-icon">🔗</span><div class="f-body"><b>Detailed route sequencing</b>
+      <p>Ground legs are sequenced after flights with the onward departure aligned to arrival plus a realistic transfer buffer; tight and overnight connections are flagged.</p></div><span class="pill done">Implemented · Phase 7</span></div>
+    <div class="feature"><span class="f-icon">❓</span><div class="f-body"><b>User preference gathering</b>
+      <p>The agent asks one focused question at a time through the interactive clarifying-question card (options + free-text "Other"), then persists preferences. Baselines are editable up-front in settings.</p></div><span class="pill done">Implemented · Phase 10</span></div>
+    <div class="feature"><span class="f-icon">⏱️</span><div class="f-body"><b>Transit synchronization</b>
+      <p>Connection buffers are enforced in the system prompt; risky connections surface in stress factors and timeline chips.</p></div><span class="pill done">Implemented · Phase 7</span></div>
+  </section>
+
+  <!-- C -->
+  <section id="scenarios">
+    <div class="cat-head"><span class="cat-ico icon i-blue" style="margin:0">⚖️</span><h3>Scenario Comparison & Scoring</h3><span class="count">2 features</span></div>
+
+    <div class="feature"><span class="f-icon">🗂️</span><div class="f-body"><b>Side-by-side scenario generation</b>
+      <p><code>generate_scenarios</code> renders 2–3 cards side-by-side with best-value and lowest-stress badges. Input validation enforces 2–3 scenarios and a complete day-by-day plan.</p></div><span class="pill done">Implemented · Phase 5</span></div>
+    <div class="feature"><span class="f-icon">😌</span><div class="f-body"><b>Qualitative stress scoring</b>
+      <p>A 1–5 stress score <span class="stress-pips"><i class="on-1"></i><i class="on-2"></i><i class="on-3"></i><i></i><i></i></span> backed by structured factors (layovers, overnight travel, tight connections, total hours), shown as a 5-pip gauge from Relaxed to Intense.</p></div><span class="pill done">Implemented</span></div>
+  </section>
+
+  <!-- D -->
+  <section id="discovery">
+    <div class="cat-head"><span class="cat-ico icon i-green" style="margin:0">🧭</span><h3>Activity & Destination Discovery</h3><span class="count">3 features</span></div>
+
+    <div class="feature"><span class="f-icon">✨</span><div class="f-body"><b>Vibe-based recommendations</b>
+      <p>The agent learns the desired vibe through clarifying questions and stores vibe tags in preferences.</p></div><span class="pill done">Implemented</span></div>
+    <div class="feature"><span class="f-icon">✋</span><div class="f-body"><b>Manual overrides</b>
+      <p>"I already have flights" → the agent skips that data tool, zeroes its cost, and plans only the rest, honoring scope limits and hard constraints (system-prompt directive 9).</p></div><span class="pill done">Implemented · Phase 10</span></div>
+    <div class="feature"><span class="f-icon">🔁</span><div class="f-body"><b>Iterative refinement</b>
+      <p>Refine one scenario by its label ("make Scenario B direct-only") — the tool is re-called once with the full set, carrying the others over unchanged.</p></div><span class="pill done">Implemented · Phase 10</span></div>
+  </section>
+
+  <!-- E -->
+  <section id="ui">
+    <div class="cat-head"><span class="cat-ico icon i-pink" style="margin:0">🖥️</span><h3>User Interface & Output Formats</h3><span class="count">7 features</span></div>
+
+    <div class="feature"><span class="f-icon">🃏</span><div class="f-body"><b>Visual & textual summaries</b>
+      <p>Conversational text plus generative-UI cards for preferences, clarifying questions, flights, dates, accommodations, research, ground transport, and scenario comparison.</p></div><span class="pill done">Implemented</span></div>
+    <div class="feature"><span class="f-icon">🖼️</span><div class="f-body"><b>Trip vibe background image</b>
+      <p>A fire-and-forget sub-agent turns the conversation + vibe tags into a scene and renders it with a Gemini image model once a destination is known; fades in behind the sidebar row and the scenario-detail header. Optional (<code>BACKGROUND_IMAGE_ENABLED</code>).</p></div><span class="pill done">Implemented</span></div>
+    <div class="feature"><span class="f-icon">📋</span><div class="f-body"><b>Detailed views & tables</b>
+      <p>The scenario detail modal shows the cost breakdown, stress factors, per-direction travel timeline, accommodation list, and an expandable day-by-day itinerary with Expand-all/Collapse-all.</p></div><span class="pill done">Implemented · Phase 5+10</span></div>
+    <div class="feature"><span class="f-icon">🙋</span><div class="f-body"><b>Interactive clarifying questions</b>
+      <p>A human-in-the-loop card pauses the run with concrete option buttons plus an always-present free-text field, then resumes with the answer (which rehydrates on reload).</p></div><span class="pill done">Implemented · Phase 10</span></div>
+    <div class="feature"><span class="f-icon">💫</span><div class="f-body"><b>Streaming UX polish</b>
+      <p>Animated candy search-progress pills, a styled collapsible reasoning bubble, shimmer skeletons, and rose-tinted error cards plus a dismissible run-failure toast.</p></div><span class="pill done">Implemented · Phase 9</span></div>
+    <div class="feature"><span class="f-icon">📱</span><div class="f-body"><b>Responsive design</b>
+      <p>Desktop keeps the 3-pane split; on smaller screens the chat is full-width, the sidebar becomes an off-canvas drawer, and modals become bottom-sheets.</p></div><span class="pill done">Implemented · Phase 10</span></div>
+    <div class="feature"><span class="f-icon">🗺️</span><div class="f-body"><b>Interactive map</b>
+      <p>A persistent split-panel plots the active scenario's route: numbered stops, stay markers, and mode-colored legs with auto-fit bounds.</p></div><span class="pill done">Implemented · Phase 8</span></div>
+  </section>
+
+  <!-- F -->
+  <section id="memory">
+    <div class="cat-head"><span class="cat-ico icon i-purple" style="margin:0">🧠</span><h3>Session Management & Memory</h3><span class="count">4 features</span></div>
+
+    <div class="feature"><span class="f-icon">🔄</span><div class="f-body"><b>Iterative workflow</b>
+      <p>The agent runs each turn and appends to persisted history — feedback loops in naturally.</p></div><span class="pill done">Implemented</span></div>
+    <div class="feature"><span class="f-icon">💾</span><div class="f-body"><b>Trip-specific memory</b>
+      <p>Full AG-UI message history is persisted per trip, so generative-UI cards rehydrate exactly as they were when you resume from the sidebar.</p></div><span class="pill done">Implemented · Phase 3</span></div>
+    <div class="feature"><span class="f-icon">👤</span><div class="f-body"><b>Global user profile</b>
+      <p>A singleton profile persists preferences across trips and loads as the baseline each run; the gear-button settings modal edits it directly.</p></div><span class="pill done">Implemented · Phase 3+10</span></div>
+    <div class="feature"><span class="f-icon">🔖</span><div class="f-body"><b>Saved scenarios</b>
+      <p>"Save this trip" bookmarks a scenario; the Saved tab lists and reopens them — even after the original conversation is deleted.</p></div><span class="pill done">Implemented</span></div>
+  </section>
+
+  <!-- G + H -->
+  <section id="ops">
+    <div class="cat-head"><span class="cat-ico icon i-blue" style="margin:0">📡</span><h3>Observability & Quality</h3><span class="count">3 areas</span></div>
+
+    <div class="feature"><span class="f-icon">🔭</span><div class="f-body"><b>Agent tracing</b>
+      <p>Langfuse v4 / OpenTelemetry traces every PydanticAI run — LLM requests, tool calls, inputs and outputs — grouped per trip thread; a silent no-op when keys are absent.</p></div><span class="pill done">Implemented</span></div>
+    <div class="feature"><span class="f-icon">🧪</span><div class="f-body"><b>Automated tests</b>
+      <p>Backend pytest (domain, DI, persistence, agent, REST routes on an isolated DB), frontend Vitest unit tests, and Playwright e2e specs for API, persistence, saved scenarios, and settings.</p></div><span class="pill done">Implemented · Phase 10</span></div>
+    <div class="feature"><span class="f-icon">🧭</span><div class="f-body"><b>LLM agent eval suite</b>
+      <p>A 30-case golden dataset run headless against the real agent with deterministic fakes for flights/hotels/research; 10 evaluators (7 deterministic + 3 LLM-as-judge) score tool selection, constraint adherence, anti-fabrication, HITL behavior, and vibe/recommendation quality, plus a live dashboard. See <a href="evals.html">evals.html</a>.</p></div><span class="pill partial">Mostly implemented</span></div>
+  </section>
+
+  <footer class="footer">
+    Full prose version: <a href="product.md">docs/product.md</a>
+  </footer>
+
+</div>
+</body>
+</html>

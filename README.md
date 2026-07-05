@@ -19,13 +19,15 @@ Kompass is an autonomous travel planning application that automatically optimize
 
 ## 📖 Project Documentation
 
-For detailed guides on the implemented system, refer to the post-building docs:
+The post-building docs live in `docs/` as a single connected site — an interactive flow demo plus five visual reference pages, all cross-linked with a shared nav — published via GitHub Pages at [m-ali-ml.github.io/kompass](https://m-ali-ml.github.io/kompass/). Each HTML page has a markdown twin with the same content in prose form:
 
-* [🧭 Interactive Flow Visualization](https://m-ali-ml.github.io/kompass/) — visual, piece-by-piece walkthrough of the whole app (tracked copy: [`docs/index.html`](./docs/index.html))
-* [Architecture & Flow Guide](./docs/architecture.md)
-* [Design & Styling Specs](./docs/design.md)
-* [Product & Feature Status](./docs/product.md)
-* [User Story Progress Tracker](./docs/user-stories.md)
+* [🧭 Interactive Flow Visualization](https://m-ali-ml.github.io/kompass/) — the homepage: a piece-by-piece, click-through walkthrough of the whole app (tracked source: [`artifacts/kompass-flow.html`](./artifacts/kompass-flow.html), published copy: [`docs/index.html`](./docs/index.html))
+* [Architecture & Flow Guide](https://m-ali-ml.github.io/kompass/architecture.html) ([markdown](./docs/architecture.md))
+* [Design & Styling Specs](https://m-ali-ml.github.io/kompass/design.html) ([markdown](./docs/design.md))
+* [Product & Feature Status](https://m-ali-ml.github.io/kompass/product.html) ([markdown](./docs/product.md))
+* [User Story Progress Tracker](https://m-ali-ml.github.io/kompass/user-stories.html) ([markdown](./docs/user-stories.md))
+* [Eval Learnings Log](https://m-ali-ml.github.io/kompass/evals.html) ([markdown](./docs/evals.md)) — the technical reference and running record for the agent-behavior eval suite (`backend/evals/`)
+* [Agent Eval Suite — Learnings Log](https://m-ali-ml.github.io/kompass/evals.html) ([markdown reference](./docs/evals.md)) — how the LLM agent is evaluated (golden dataset, deterministic + LLM-judge scoring), and a chronological log of what each eval run found
 
 Historical blueprints and requirements can be found in:
 
@@ -128,7 +130,28 @@ cd frontend && npm run lint
 
 # End-to-end tests (Playwright; boots both servers on isolated ports + DB)
 cd frontend && npm run test:e2e
+
+# Agent-behavior eval suite (real LLM against deterministic fixtures — see docs/evals.md)
+cd backend && uv run python -m evals.run
 ```
+
+These test *code*. The agent's *behavior* (tool selection, constraint adherence,
+anti-fabrication, HITL) is measured separately by an LLM eval suite — a 30-case
+golden dataset run headless against the real agent with deterministic fakes for
+flights/hotels/research, scored by 10 evaluators (7 deterministic + 3
+LLM-as-judge):
+
+```bash
+# Full eval run against the model configured in backend/.env
+cd backend && uv run python -m evals.run
+
+# Live dashboard reading artifacts/eval_report_*.json (auto-refreshes)
+cd backend && uv run python -m evals.dashboard   # → http://localhost:8420
+```
+
+See [`docs/evals.md`](./docs/evals.md) for the architecture and
+[`docs/evals.html`](https://m-ali-ml.github.io/kompass/evals.html) for the
+running log of what each eval run has found.
 
 ---
 

@@ -129,50 +129,18 @@ def _extract(messages: list[ModelMessage]) -> tuple[list[ToolCall], dict[str, li
     return calls, returns
 
 
-async def run_case(
-    prompt: str,
-    *,
-    preferences: UserPreferences | None = None,
-    message_history: list[ModelMessage] | None = None,
-    model: Any = None,
-    clarifying_answer: str | None = None,
-) -> EvalRunResult:
-    """Run one eval case headless and return an inspectable result.
-
-    Args:
-        prompt: The user's message for this turn.
-        preferences: Seed preferences (stands in for the saved global profile).
-        message_history: Prior turns for multi-turn cases.
-        model: Optional model override; defaults to the agent's configured
-            production model (settings.LLM_MODEL).
-        clarifying_answer: Scripted reply for `ask_clarifying_question`; when
-            None the stub answers with the first offered option.
-    """
-    flight_service = FakeFlightService()
-    accommodation_service = FakeAccommodationService()
-    research_service = FakeResearchService()
-    deps = AgentDependencies(
+def _build_deps(preferences: UserPreferences | None) -> AgentDependencies:
+    return AgentDependencies(
         prompt_service=FilePromptService(_PROMPTS_DIR),
         user_preferences=preferences or UserPreferences(),
-        flight_service=flight_service,
-        accommodation_service=accommodation_service,
-        research_service=research_service,
+        flight_service=FakeFlightService(),
+        accommodation_service=FakeAccommodationService(),
+        research_service=FakeResearchService(),
         # No DB repositories: profile persistence is a no-op in evals.
     )
 
-    run_kwargs: dict[str, Any] = {
-        "deps": deps,
-        "usage_limits": _USAGE_LIMITS,
-        "model_settings": _MODEL_SETTINGS,
-        "toolsets": [_clarifying_toolset(clarifying_answer)],
-    }
-    if message_history is not None:
-        run_kwargs["message_history"] = message_history
-    if model is not None:
-        run_kwargs["model"] = model
 
-    result = await kompass_agent.run(prompt, **run_kwargs)
-
+def _assemble(prompt: str, result: Any, deps: AgentDependencies) -> EvalRunResult:
     messages = result.all_messages()
     tool_calls, tool_returns = _extract(messages)
 
@@ -195,11 +163,87 @@ async def run_case(
         scenarios_payload=scenarios_payload,
         usage=result.usage,
         messages=messages,
-        flight_service=flight_service,
-        accommodation_service=accommodation_service,
-        research_service=research_service,
+        flight_service=deps.flight_service,
+        accommodation_service=deps.accommodation_service,
+        research_service=deps.research_service,
         deps=deps,
     )
+
+
+async def run_case(
+    prompt: str,
+    *,
+    preferences: UserPreferences | None = None,
+    message_history: list[ModelMessage] | None = None,
+    model: Any = None,
+    clarifying_answer: str | None = None,
+) -> EvalRunResult:
+    """Run one eval case headless and return an inspectable result.
+
+    Args:
+        prompt: The user's message for this turn.
+        preferences: Seed preferences (stands in for the saved global profile).
+        message_history: Prior turns for multi-turn cases.
+        model: Optional model override; defaults to the agent's configured
+            production model (settings.LLM_MODEL).
+        clarifying_answer: Scripted reply for `ask_clarifying_question`; when
+            None the stub answers with the first offered option.
+    """
+    deps = _build_deps(preferences)
+
+    run_kwargs: dict[str, Any] = {
+        "deps": deps,
+        "usage_limits": _USAGE_LIMITS,
+        "model_settings": _MODEL_SETTINGS,
+        "toolsets": [_clarifying_toolset(clarifying_answer)],
+    }
+    if message_history is not None:
+        run_kwargs["message_history"] = message_history
+    if model is not None:
+        run_kwargs["model"] = model
+
+    result = await kompass_agent.run(prompt, **run_kwargs)
+    return _assemble(prompt, result, deps)
+
+
+async def run_conversation(
+    prompts: list[str],
+    *,
+    preferences: UserPreferences | None = None,
+    model: Any = None,
+    clarifying_answer: str | None = None,
+) -> EvalRunResult:
+    """Run a multi-turn conversation and return the FINAL turn's result.
+
+    All turns share ONE set of deps/fakes (so recorded calls accumulate) and
+    thread `message_history`, mirroring a real refinement session ("...now make
+    it cheaper"). Evaluators score the final trace; the returned result's
+    `messages`/`tool_calls` span the whole conversation because pydantic-ai's
+    `all_messages()` includes the prior turns carried via message_history.
+    """
+    if not prompts:
+        raise ValueError("run_conversation requires at least one prompt")
+
+    deps = _build_deps(preferences)
+    base_kwargs: dict[str, Any] = {
+        "deps": deps,
+        "usage_limits": _USAGE_LIMITS,
+        "model_settings": _MODEL_SETTINGS,
+        "toolsets": [_clarifying_toolset(clarifying_answer)],
+    }
+    if model is not None:
+        base_kwargs["model"] = model
+
+    result = None
+    history: list[ModelMessage] | None = None
+    for turn in prompts:
+        kwargs = dict(base_kwargs)
+        if history is not None:
+            kwargs["message_history"] = history
+        result = await kompass_agent.run(turn, **kwargs)
+        history = result.all_messages()
+
+    return _assemble(prompts[-1], result, deps)
 
 
 def _summarize(res: EvalRunResult) -> str:

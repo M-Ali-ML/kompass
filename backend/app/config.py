@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     # is a good fit and keeps it decoupled from the main planning model.
     research_model: str = Field("google:gemini-2.5-flash", alias="RESEARCH_MODEL")
 
+    # Eval suite (backend/evals). `eval_model` optionally overrides the
+    # agent-under-test model (defaults to LLM_MODEL — "test what ships");
+    # `eval_judge_model` is the LLM-as-judge for soft criteria (recommendation
+    # quality, vibe match) and is decoupled from prod so it doesn't shift when
+    # LLM_MODEL changes. Both are read by evals/run.py and evals/judge.py.
+    eval_model: Optional[str] = Field(None, alias="EVAL_MODEL")
+    eval_judge_model: str = Field("google:gemini-2.5-flash-lite", alias="EVAL_JUDGE_MODEL")
+
     # Trip "vibe" background image generation. A cheap Gemini image model paints
     # a destination/atmosphere image per trip (shown in the trip sidebar + the
     # scenario detail modal). `image_scene_model` is a cheap text model used to
