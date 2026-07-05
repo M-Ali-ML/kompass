@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     # Flights: official Kiwi.com MCP server (remote, streamable HTTP, no API key).
     # Override only to point at a different host/proxy.
-    kiwi_mcp_url: str = Field("https://mcp.kiwi.com/mcp", alias="KIWI_MCP_URL")
+    kiwi_mcp_url: str = Field("https://mcp.kiwi.com/", alias="KIWI_MCP_URL")
 
     # Accommodations provider (SerpApi Google Hotels). Optional: when unset, the
     # accommodation tool degrades to the grounded search_web tool. (Flights no

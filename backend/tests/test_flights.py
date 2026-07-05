@@ -162,19 +162,45 @@ async def test_find_cheapest_dates_tool_flags_data_source_error():
 
 # --- Kiwi adapter: search_flights ---------------------------------------------
 
-def _kiwi_item(*, dep_local, arr_local, price, layovers, deep="https://on.kiwi.com/X", dur=11700):
+def _segment(frm, to, from_city, to_city, carrier="FR"):
     return {
-        "flyFrom": "BER",
-        "flyTo": "ATH",
-        "cityFrom": "Berlin",
-        "cityTo": "Athens",
-        "departure": {"utc": dep_local + "Z", "local": dep_local + ".000"},
-        "arrival": {"utc": arr_local + "Z", "local": arr_local + ".000"},
-        "totalDurationInSeconds": dur,
+        "from": frm, "to": to, "fromCity": from_city, "toCity": to_city,
+        "departureTime": "2026-09-10T09:00:00", "arrivalTime": "2026-09-10T11:00:00",
+        "durationSeconds": 7200, "carrier": carrier, "flightNumber": f"{carrier}123",
+        "cabinClass": "Economy",
+    }
+
+
+def _kiwi_item(*, dep_local, arr_local, price, layover_cities, deep="https://kiwi.com/u/X",
+               dur=11700, carriers=None):
+    """Build a new-schema Kiwi itinerary (outbound leg only, one-way).
+
+    ``layover_cities`` is a list of intermediate city names; the outbound leg is
+    given one more segment than there are layovers. ``carriers`` optionally sets
+    the per-segment carrier IATA codes (defaults to a single 'FR' throughout).
+    """
+    route = ["BER"] + [c[:3].upper() for c in layover_cities] + ["ATH"]
+    cities = list(layover_cities) + ["Athens"]
+    seg_carriers = carriers or ["FR"] * len(cities)
+    segments = []
+    prev_code, prev_city = "BER", "Berlin"
+    for city, carrier in zip(cities, seg_carriers):
+        code = "ATH" if city == "Athens" else city[:3].upper()
+        segments.append(_segment(prev_code, code, prev_city, city, carrier))
+        prev_code, prev_city = code, city
+    return {
+        "id": "abc_0|def_0",
         "price": price,
-        "currency": "EUR",
-        "deepLink": deep,
-        "layovers": layovers,
+        "priceFormatted": f"{price} EUR",
+        "totalDurationSeconds": dur,
+        "bookingUrl": deep,
+        "outbound": {
+            "from": "BER", "to": "ATH",
+            "departureTime": dep_local, "arrivalTime": arr_local,
+            "durationSeconds": dur, "stops": len(layover_cities),
+            "route": route, "cabinClass": "Economy", "segments": segments,
+        },
+        "inbound": None,
     }
 
 
@@ -188,11 +214,13 @@ async def test_search_flights_maps_args_and_options():
         return [
             _kiwi_item(
                 dep_local="2026-09-10T09:00:00", arr_local="2026-09-10T14:45:00",
-                price=140, layovers=[{"at": "MUC", "city": "Munich"}], deep=".../BBB", dur=20700,
+                price=140, layover_cities=["Munich"], deep=".../BBB", dur=20700,
+                carriers=["LH", "A3"],  # multi-carrier self-transfer
             ),
             _kiwi_item(
                 dep_local="2026-09-10T07:00:00", arr_local="2026-09-10T10:15:00",
-                price=165, layovers=[], deep=".../AAA", dur=11700,
+                price=165, layover_cities=[], deep=".../AAA", dur=11700,
+                carriers=["FR"],  # single-carrier direct
             ),
         ]
 
@@ -201,24 +229,23 @@ async def test_search_flights_maps_args_and_options():
         "ber", "ath", "2026-09-10", passengers=2, currency="EUR"
     )
 
-    # Outgoing Kiwi args: upper-cased IATA, dd/mm/yyyy date, adults, currency, price sort.
+    # Outgoing Kiwi args: upper-cased IATA, dd/mm/yyyy date, flat adults + currency.
     args = captured["args"]
     assert args["flyFrom"] == "BER" and args["flyTo"] == "ATH"
     assert args["departureDate"] == "10/09/2026"
-    assert args["passengers"] == {"adults": 2}
-    assert args["curr"] == "EUR"
-    assert args["sort"] == "price"
+    assert args["adults"] == 2
+    assert args["currency"] == "EUR"
 
-    # Cheapest-first; routing label stands in for the (absent) carrier name.
+    # Cheapest-first; airline carries the real operating carrier IATA code(s).
     assert [o.price for o in options] == [140.0, 165.0]
     cheapest = options[0]
     assert isinstance(cheapest, FlightOption)
     assert cheapest.stops == 1
-    assert cheapest.airline == "via Munich"
+    assert cheapest.airline == "LH / A3"  # slash-joined multi-carrier
     assert cheapest.booking_link == ".../BBB"
     assert cheapest.duration_minutes == 345
     assert cheapest.departure_time == "2026-09-10T09:00:00"  # ISO, millis stripped
-    assert options[1].airline == "Direct"
+    assert options[1].airline == "FR"  # single carrier
 
 
 @pytest.mark.asyncio
@@ -228,9 +255,9 @@ async def test_search_flights_filters_max_stops():
     async def fake_search(arguments):
         return [
             _kiwi_item(dep_local="2026-09-10T09:00:00", arr_local="2026-09-10T14:45:00",
-                       price=140, layovers=[{"at": "MUC", "city": "Munich"}]),
+                       price=140, layover_cities=["Munich"]),
             _kiwi_item(dep_local="2026-09-10T07:00:00", arr_local="2026-09-10T10:15:00",
-                       price=165, layovers=[]),
+                       price=165, layover_cities=[]),
         ]
 
     adapter._search = fake_search
@@ -246,9 +273,9 @@ async def test_search_flights_filters_preferred_time():
     async def fake_search(arguments):
         return [
             _kiwi_item(dep_local="2026-09-10T07:00:00", arr_local="2026-09-10T10:15:00",
-                       price=165, layovers=[]),
+                       price=165, layover_cities=[]),
             _kiwi_item(dep_local="2026-09-10T21:00:00", arr_local="2026-09-11T00:15:00",
-                       price=120, layovers=[]),
+                       price=120, layover_cities=[]),
         ]
 
     adapter._search = fake_search
@@ -292,10 +319,12 @@ async def test_find_cheapest_dates_samples_and_aggregates(monkeypatch):
         # One option on the sample's own date, plus a shared off-sample date whose
         # price drops on each call so cheapest-per-date dedupe is observable.
         return [
-            {"departure": {"local": d.isoformat() + "T08:00:00.000"},
-             "price": 100 + len(calls) * 10, "currency": "USD", "layovers": []},
-            {"departure": {"local": "2026-09-20T09:00:00.000"},
-             "price": 300 - len(calls) * 10, "currency": "USD", "layovers": []},
+            {"outbound": {"departureTime": d.isoformat() + "T08:00:00"},
+             "inbound": {"departureTime": d.isoformat() + "T18:00:00"},
+             "price": 100 + len(calls) * 10, "currency": "USD"},
+            {"outbound": {"departureTime": "2026-09-20T09:00:00"},
+             "inbound": {"departureTime": "2026-09-27T19:00:00"},
+             "price": 300 - len(calls) * 10, "currency": "USD"},
         ]
 
     adapter._search = fake_search
@@ -307,8 +336,8 @@ async def test_find_cheapest_dates_samples_and_aggregates(monkeypatch):
     # Month sampled in ~7-day steps, bounded by _DATE_SAMPLES.
     assert len(calls) == 5
     # Round-trip args carry a flex-ranged return date.
-    assert calls[0]["departureDateFlexRange"] == 3
-    assert calls[0]["returnDateFlexRange"] == 3
+    assert calls[0]["departureDateFlexDays"] == 3
+    assert calls[0]["returnDateFlexDays"] == 3
     assert "returnDate" in calls[0]
 
     assert all(isinstance(o, FlightDateOption) for o in options)
@@ -329,8 +358,8 @@ async def test_find_cheapest_dates_filters_out_of_range_dates():
     async def fake_search(arguments):
         # Flex can return dates just outside the window; those must be dropped.
         return [
-            {"departure": {"local": "2026-08-30T08:00:00.000"}, "price": 50, "layovers": []},
-            {"departure": {"local": "2026-09-05T08:00:00.000"}, "price": 90, "layovers": []},
+            {"outbound": {"departureTime": "2026-08-30T08:00:00"}, "price": 50},
+            {"outbound": {"departureTime": "2026-09-05T08:00:00"}, "price": 90},
         ]
 
     adapter._search = fake_search

@@ -1,6 +1,6 @@
 """Flight data adapter backed by the official Kiwi.com MCP server.
 
-Connects directly to the remote Kiwi MCP (``https://mcp.kiwi.com/mcp`` by default,
+Connects directly to the remote Kiwi MCP (``https://mcp.kiwi.com/`` by default,
 overridable via ``KIWI_MCP_URL``) over streamable HTTP — no API key required. Kiwi
 is already an MCP server, so there is no local wrapper subprocess: this adapter is
 the only translation layer between the agent's ``FlightServicePort`` and Kiwi.
@@ -13,6 +13,17 @@ Kiwi exposes a single ``search-flight`` tool. We map it to the two port methods:
 * ``find_cheapest_dates`` — several ``search-flight`` calls fired concurrently,
   each using Kiwi's ±3-day flex window so a handful of calls covers a whole month,
   then the cheapest fare per departure date is kept and ranked.
+
+Kiwi's ``search-flight`` request/response shape (as of the 2026 migration to the
+root ``/`` endpoint): arguments are flat (``flyFrom``/``flyTo``/``departureDate``
+in ``dd/mm/yyyy``, ``returnDate`` for round-trips, ``adults``/``children``/
+``infants``, ``departureDateFlexDays``/``returnDateFlexDays`` 0..3, ``currency``).
+The response is a dict ``{query, currency, resultsCount, itineraries, ...}`` where
+each itinerary carries ``price``, ``bookingUrl``, ``totalDurationSeconds`` and an
+``outbound`` (plus ``inbound`` for round-trips) leg. Each leg has ``from``/``to``,
+``departureTime``/``arrivalTime`` (already ISO local), ``stops``, ``route`` and a
+list of ``segments`` (each with ``carrier``/``flightNumber``/``fromCity``/
+``toCity``) — the segment ``carrier`` codes give us the operating airline(s).
 
 Reliability contract: a transport/protocol failure (dead connection, timeout, an
 ``isError`` tool result) raises ``KiwiTransportError`` — it is NOT silently
@@ -48,7 +59,8 @@ _TOP_N = max(1, int(os.getenv("KIWI_FLIGHTS_TOP_N", "5")))
 # How many flex-window searches to fire across a cheapest-dates range. Each Kiwi
 # call covers a ~7-day window (±3 flex), so ~5 calls span a month.
 _DATE_SAMPLES = max(1, int(os.getenv("KIWI_DATE_SAMPLES", "5")))
-# Kiwi flex range maximum (the tool accepts 0..3 days either side).
+# Kiwi flex range maximum (the tool accepts 0..3 days either side, via the
+# ``departureDateFlexDays`` / ``returnDateFlexDays`` args).
 _FLEX = 3
 # Hard cap on one connect+search round-trip so a hung remote can't stall the
 # agent turn; the caller degrades to an empty result on expiry.
@@ -100,7 +112,12 @@ def _safe_date(value: str) -> date | None:
 
 
 def _kiwi_local_to_iso(local: str | None) -> str:
-    """Normalize Kiwi's local timestamp ('2026-09-10T06:00:00.000') to ISO seconds."""
+    """Normalize a Kiwi local timestamp to ISO seconds.
+
+    Kiwi now returns clean local ISO strings ('2026-09-03T13:10:00'); older
+    payloads used a millisecond/UTC suffix ('2026-09-10T06:00:00.000' / 'Z').
+    Strip both so the output is always 'YYYY-MM-DDTHH:MM:SS'.
+    """
     if not local:
         return ""
     s = local.replace("Z", "")
@@ -111,41 +128,49 @@ def _kiwi_local_to_iso(local: str | None) -> str:
 
 # --- Result mapping -----------------------------------------------------------
 
-def _routing_label(layovers: list[dict]) -> str:
-    """A truthful carrier-less label: 'Direct' or 'via <city>, <city>'.
+def _carrier_label(segments: list[dict]) -> str:
+    """Operating carrier IATA code(s) for a leg, e.g. 'FR' or 'FR / A3'.
 
-    Kiwi's MCP output omits airline names (its itineraries are often multi-carrier
-    self-transfers), so we surface the connection routing instead of a carrier.
+    Kiwi now exposes a real ``carrier`` code per segment (multi-carrier
+    self-transfers list each once, in order). Falls back to a 'Direct'/
+    'via <city>' routing label only when Kiwi omits carriers entirely.
     """
-    cities: list[str] = []
-    for lay in layovers or []:
-        name = lay.get("city") or lay.get("cityCode") or lay.get("at")
-        if name and name not in cities:
-            cities.append(name)
-    if not cities:
-        return "Direct"
-    return "via " + ", ".join(cities)
+    codes = list(dict.fromkeys(s.get("carrier") for s in segments if s.get("carrier")))
+    if codes:
+        return " / ".join(codes)
+    cities = list(dict.fromkeys(
+        c for c in (s.get("toCity") or s.get("to") for s in (segments or [])[:-1]) if c
+    ))
+    return "via " + ", ".join(cities) if cities else "Direct"
 
 
 def _parse_option(item: dict, currency: str) -> FlightOption | None:
-    """Map one Kiwi ``search-flight`` result into a ``FlightOption``."""
+    """Map one Kiwi ``search-flight`` itinerary into a one-way ``FlightOption``.
+
+    Uses the itinerary's ``outbound`` leg (a single-date ``search_flights`` call
+    is one-way, so ``inbound`` is null). Price/booking URL live on the itinerary;
+    times/stops/segments live on the leg.
+    """
     price = item.get("price")
     if price is None:
         return None
-    layovers = item.get("layovers") or []
-    dep = item.get("departure") or {}
-    arr = item.get("arrival") or {}
+    leg = item.get("outbound") or {}
+    segments = leg.get("segments") or []
+    duration_s = leg.get("durationSeconds") or item.get("totalDurationSeconds") or 0
+    stops = leg.get("stops")
+    if stops is None:
+        stops = max(len(segments) - 1, 0)
     return FlightOption(
-        origin=item.get("flyFrom", ""),
-        destination=item.get("flyTo", ""),
-        departure_time=_kiwi_local_to_iso(dep.get("local")),
-        arrival_time=_kiwi_local_to_iso(arr.get("local")),
-        duration_minutes=round(float(item.get("totalDurationInSeconds") or 0) / 60),
-        stops=len(layovers),
-        airline=_routing_label(layovers),
+        origin=leg.get("from", ""),
+        destination=leg.get("to", ""),
+        departure_time=_kiwi_local_to_iso(leg.get("departureTime")),
+        arrival_time=_kiwi_local_to_iso(leg.get("arrivalTime")),
+        duration_minutes=round(float(duration_s) / 60),
+        stops=int(stops),
+        airline=_carrier_label(segments),
         price=round(float(price), 2),
         currency=item.get("currency") or currency,
-        booking_link=item.get("deepLink"),
+        booking_link=item.get("bookingUrl"),
         estimated=False,
     )
 
@@ -258,9 +283,8 @@ class KiwiMCPFlightServiceAdapter(FlightServicePort):
             "flyFrom": origin.strip().upper(),
             "flyTo": destination.strip().upper(),
             "departureDate": depart_kiwi,
-            "passengers": {"adults": max(passengers, 1)},
-            "curr": currency,
-            "sort": "price",
+            "adults": max(passengers, 1),
+            "currency": currency,
         }
         items = await self._search(arguments)
 
@@ -306,14 +330,13 @@ class KiwiMCPFlightServiceAdapter(FlightServicePort):
                 "flyFrom": fly_from,
                 "flyTo": fly_to,
                 "departureDate": _date_to_kiwi(dep),
-                "departureDateFlexRange": _FLEX,
-                "passengers": {"adults": 1},
-                "curr": currency,
-                "sort": "price",
+                "departureDateFlexDays": _FLEX,
+                "adults": 1,
+                "currency": currency,
             }
             if duration_days:
                 arguments["returnDate"] = _date_to_kiwi(dep + timedelta(days=duration_days))
-                arguments["returnDateFlexRange"] = _FLEX
+                arguments["returnDateFlexDays"] = _FLEX
             async with sem:
                 return await self._search(arguments)
 
@@ -324,16 +347,17 @@ class KiwiMCPFlightServiceAdapter(FlightServicePort):
         for items in batches:
             for it in items:
                 price = it.get("price")
-                dep_iso = _kiwi_local_to_iso((it.get("departure") or {}).get("local"))[:10]
+                outbound = it.get("outbound") or {}
+                dep_iso = _kiwi_local_to_iso(outbound.get("departureTime"))[:10]
                 if price is None or not dep_iso:
                     continue
                 dep_d = _safe_date(dep_iso)
                 if dep_d is None or dep_d < start or dep_d > end:
                     continue
                 ret_iso: str | None = None
-                ret_block = it.get("return") or {}
-                if ret_block:
-                    ret_iso = _kiwi_local_to_iso((ret_block.get("departure") or {}).get("local"))[:10] or None
+                inbound = it.get("inbound") or {}
+                if inbound:
+                    ret_iso = _kiwi_local_to_iso(inbound.get("departureTime"))[:10] or None
                 elif duration_days:
                     ret_iso = (dep_d + timedelta(days=duration_days)).isoformat()
                 price_f = round(float(price), 2)
@@ -351,20 +375,38 @@ class KiwiMCPFlightServiceAdapter(FlightServicePort):
         return [FlightDateOption(**o) for o in ranked]
 
 
-def _extract_items(result) -> list[dict]:
-    """Pull the list of flight dicts out of an MCP tool result.
+def _itineraries_from(data) -> list[dict]:
+    """Extract the itinerary list from a parsed Kiwi payload.
 
-    Kiwi returns a JSON array as the text content block; some servers also mirror
-    it in ``structuredContent``. Returns ``[]`` for anything unparseable (e.g. a
-    plain error string), which the callers treat as "no data".
+    Kiwi wraps results in ``{..., "itineraries": [...]}``; older payloads used
+    ``{"data": [...]}`` or a bare array. Falls back to the first list value so a
+    minor key rename doesn't blank out results. Returns ``[]`` when there's no
+    list to be found.
     """
-    structured = getattr(result, "structuredContent", None)
-    if isinstance(structured, list):
-        return structured
-    if isinstance(structured, dict):
-        for value in structured.values():
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key in ("itineraries", "data"):
+            inner = data.get(key)
+            if isinstance(inner, list):
+                return inner
+        for value in data.values():
             if isinstance(value, list):
                 return value
+    return []
+
+
+def _extract_items(result) -> list[dict]:
+    """Pull the list of flight itineraries out of an MCP tool result.
+
+    Kiwi returns a JSON object as the text content block and mirrors it in
+    ``structuredContent``. Returns ``[]`` for anything unparseable (e.g. a plain
+    error string), which the callers treat as "no data".
+    """
+    structured = getattr(result, "structuredContent", None)
+    items = _itineraries_from(structured)
+    if items:
+        return items
 
     content = getattr(result, "content", None)
     if content:
@@ -373,11 +415,7 @@ def _extract_items(result) -> list[dict]:
             data = json.loads(text)
         except (json.JSONDecodeError, TypeError):
             return []
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            inner = data.get("data")
-            return inner if isinstance(inner, list) else []
+        return _itineraries_from(data)
     return []
 
 
