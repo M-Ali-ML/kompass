@@ -2,8 +2,10 @@
 
 The cheap Gemini scene + image calls are mocked so these stay offline; we only
 exercise the orchestration logic: the ready path, the no-destination skip, the
-error path, and the run-once dedupe guard.
+error path, the run-once dedupe guard, and the concurrent-turn race guard.
 """
+import asyncio
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -131,6 +133,49 @@ async def test_runs_once_when_row_exists(session_factory, monkeypatch):
     await generate_trip_background("trip-4", "Plan Lisbon again", UserPreferences())
 
     assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_turns_describe_scene_once(session_factory, monkeypatch):
+    """Two near-simultaneous turns for the same trip must not both run the
+    (LLM-backed) scene_agent describe step. The in-flight slot is claimed
+    synchronously before the first await, so the loser bails immediately."""
+    monkeypatch.setattr(image_agent, "SessionLocal", session_factory)
+    monkeypatch.setattr(image_agent.settings, "background_image_enabled", True)
+
+    describe_calls = 0
+
+    async def _slow_describe(conversation_text, preferences):
+        nonlocal describe_calls
+        describe_calls += 1
+        # Yield control so a second concurrent task would interleave here if the
+        # in-flight guard were claimed after (rather than before) an await.
+        await asyncio.sleep(0)
+        return BackgroundScene(destination="Athens", scene_prompt="a vivid scene")
+
+    monkeypatch.setattr(image_agent, "_describe_scene", _slow_describe)
+
+    generate_calls = 0
+
+    async def _count(prompt):
+        nonlocal generate_calls
+        generate_calls += 1
+        return (b"IMG", "image/webp")
+
+    monkeypatch.setattr(image_agent, "_generate_image", _count)
+
+    await asyncio.gather(
+        generate_trip_background("trip-race", "Plan Athens", UserPreferences()),
+        generate_trip_background("trip-race", "Plan Athens", UserPreferences()),
+    )
+
+    assert describe_calls == 1
+    assert generate_calls == 1
+
+    repo = SqliteTripBackgroundRepository(session_factory)
+    row = await repo.get("trip-race")
+    assert row is not None
+    assert row.status == "ready"
 
 
 @pytest.mark.asyncio

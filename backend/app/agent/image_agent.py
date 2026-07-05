@@ -23,6 +23,7 @@ from app.adapters.sqlite_trip_background_repository import SqliteTripBackgroundR
 from app.config import settings
 from app.db import SessionLocal
 from app.domain.user_preferences import UserPreferences
+from app.telemetry import trace_attributes
 
 logger = logging.getLogger("kompass.image")
 
@@ -177,46 +178,65 @@ async def generate_trip_background(
     if not settings.background_image_enabled or not trip_id:
         return
 
+    # Claim the in-process slot SYNCHRONOUSLY — before the first `await` — so two
+    # near-simultaneous turns of the same conversation can't both slip past the
+    # guard and each fire the (LLM-backed) scene_agent describe step. Previously
+    # `_in_flight.add` happened *after* `await repo.get`, so both turns saw an
+    # empty set and empty row, and both described. Whoever loses the claim bails.
     if trip_id in _in_flight:
         return
-
-    repo = SqliteTripBackgroundRepository(SessionLocal)
-
-    if not force:
-        existing = await repo.get(trip_id)
-        if existing is not None and existing.status in ("pending", "ready"):
-            return
-
     _in_flight.add(trip_id)
+    # This is a detached fire-and-forget task, so its `scene_agent` spans are
+    # created OUTSIDE the request's `stream_with_attributes` context and would
+    # otherwise land as orphan root traces on the `default` environment. Stamp
+    # them with the trip's `session_id` (== thread_id) and `environment` so they
+    # group under the same Langfuse session as the conversation, and tag them
+    # `background-image` so they can be filtered out of the main agent view.
     try:
-        destination: str | None = None
-        scene_prompt = override_scene
-        if scene_prompt is None:
-            scene = await _describe_scene(conversation_text, preferences)
-            # No destination committed yet: don't lock a row, so a later turn can
-            # retry once the traveler names a place.
-            if scene is None or not scene.destination:
-                logger.info("No destination yet for trip %s; skipping image", trip_id)
+        repo = SqliteTripBackgroundRepository(SessionLocal)
+
+        # Short-circuit BEFORE describing the scene when a background already
+        # exists (or is mid-flight) for this trip — this is the guard that keeps
+        # the scene_agent from re-running on every follow-up turn. A forced regen
+        # (explicit user request) always proceeds.
+        if not force:
+            existing = await repo.get(trip_id)
+            if existing is not None and existing.status in ("pending", "ready"):
                 return
-            destination = scene.destination
-            scene_prompt = scene.scene_prompt
 
-        # Claim the slot. For a forced regen we overwrite; otherwise the atomic
-        # try_begin both locks and dedupes against concurrent turns.
-        if force:
-            await repo.set_status(trip_id, "pending")
-        elif not await repo.try_begin(trip_id):
-            return
+        with trace_attributes(
+            session_id=trip_id,
+            environment="production",
+            tags=["background-image"],
+        ):
+            destination: str | None = None
+            scene_prompt = override_scene
+            if scene_prompt is None:
+                scene = await _describe_scene(conversation_text, preferences)
+                # No destination committed yet: don't lock a row, so a later turn
+                # can retry once the traveler names a place.
+                if scene is None or not scene.destination:
+                    logger.info("No destination yet for trip %s; skipping image", trip_id)
+                    return
+                destination = scene.destination
+                scene_prompt = scene.scene_prompt
 
-        logger.info("Generating background for trip %s (dest=%r)", trip_id, destination)
-        image_bytes, mime = await _generate_image(scene_prompt)
-        await repo.save_ready(
-            trip_id,
-            destination=destination,
-            scene_prompt=scene_prompt,
-            image=image_bytes,
-            mime=mime,
-        )
+            # Claim the slot. For a forced regen we overwrite; otherwise the atomic
+            # try_begin both locks and dedupes against concurrent turns.
+            if force:
+                await repo.set_status(trip_id, "pending")
+            elif not await repo.try_begin(trip_id):
+                return
+
+            logger.info("Generating background for trip %s (dest=%r)", trip_id, destination)
+            image_bytes, mime = await _generate_image(scene_prompt)
+            await repo.save_ready(
+                trip_id,
+                destination=destination,
+                scene_prompt=scene_prompt,
+                image=image_bytes,
+                mime=mime,
+            )
     except Exception as e:  # noqa: BLE001 - background job must never crash the app
         logger.error("Background image generation failed for trip %s: %s", trip_id, e)
         try:
