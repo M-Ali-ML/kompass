@@ -233,6 +233,30 @@
         for the mechanics.</div>
       </div>
 
+      <div class="t-item">
+        <span class="pill info">Debugged via Langfuse · 2026-07-05</span>
+        <b>First real debugging session using the new Langfuse wiring — and it paid off in two clicks, not a custom script</b>
+        <p>A full 30-case run flagged <code>empty_route_falls_back_and_flags_estimated</code> failing
+        <code>prices_flagged_estimated</code>. Instead of writing a throwaway debug script, filtered Langfuse to
+        <code>environment = eval</code>, <code>traceName = empty_route_falls_back_and_flags_estimated</code>, and
+        read the <code>generate_scenarios</code> tool call directly: the model's own <code>reasoning_summary</code>
+        said <em>"the total cost is an estimate due to flight prices being sourced from web search"</em> — but the
+        structured <code>estimated</code> argument it actually passed to the tool was <code>false</code>. Right
+        reasoning, wrong structured output — the same failure shape as the itemized-costs bug (§7 in
+        <a href="evals.md">evals.md</a>), just far less frequent.</p>
+        <p style="margin-top:10px"><b>Quantified before acting:</b> repeated the case 9 more times rather than
+        prompt-patching off one sample. Result: <b>8/9</b> passed <code>prices_flagged_estimated</code> cleanly —
+        genuine low-rate model flakiness, not a deterministic bug, so left unfixed rather than overfitting a prompt
+        change to one data point.</p>
+        <div class="callout"><b>Bonus finding — revised, not resolved:</b> one of those 9 repeats hit the
+        <em>known-open</em> <code>Exceeded maximum output retries (2)</code> error — but on this small, single-leg
+        case, not a heavy multi-day synthesis. The trace showed the empty completion firing right after a plain
+        <code>search_web</code> response, before <code>generate_scenarios</code> was ever called. That downgrades
+        "large final-synthesis context" from root cause to correlation — the real trigger looks like an
+        intermittent Flash empty-completion glitch on any post-tool-call turn. Still open, still needs an
+        architectural fix, but now a more accurate diagnosis of what to fix.</div>
+      </div>
+
     </div>
 
     <div class="callout" style="margin-top:30px">
