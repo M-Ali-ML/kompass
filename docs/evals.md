@@ -324,8 +324,8 @@ individually at low concurrency isolated **2 genuinely reproducible**
 failures, both the heaviest single-plan syntheses
 (`greek_island_hop_single_plan`, `vibe_relaxed_foodie`): they consistently hit
 `UnexpectedModelBehavior: Exceeded maximum output retries` — Flash
-intermittently returns an empty completion on a very large final-synthesis
-context.
+intermittently returns an empty completion (`finish_reason: "error"`, no text,
+no tool call) on a very large final-synthesis context.
 
 Attempted fix: raised the agent's output-retry budget
 (`retries={'tools': 2, 'output': 2}` in `app/agent/agent.py`, up from the
@@ -334,8 +334,28 @@ pydantic-ai default of 1). Re-verified on the same two cases: **still fails**
 recover from an empty completion on this much output. This is logged as an
 **open** finding, not a closed one; the next candidates are lightening the
 single-plan day-by-day detail the prompt asks for, or splitting the synthesis
-into two tool calls. Full chronological write-up (with before/after evidence
-for every finding above): [`evals.html`](evals.html).
+into two tool calls.
+
+**Update, debugged via Langfuse (§10):** a repeat-count run surfaced the same
+`Exceeded maximum output retries (2)` signature on
+`empty_route_falls_back_and_flags_estimated` — a small, single-leg case, not a
+heavy multi-day synthesis. Inspecting the trace showed the empty completion
+happened immediately after a plain `search_web` tool response, before
+`generate_scenarios` was ever called. This **revises the "heavy synthesis"
+theory down to a correlation, not the root cause**: the real trigger looks
+like an intermittent Flash empty-completion glitch on *any* post-tool-call
+turn, more likely to surface on the largest-context calls (which the
+single-plan syntheses are, but not exclusively) rather than something specific
+to synthesis size. Still open; still needs an architectural fix rather than a
+prompt nudge. The same debugging pass also found `prices_flagged_estimated`
+flaky on that case (~89% pass rate, 8/9 sampled runs) — the model's own prose
+correctly called the price an estimate but the structured `estimated` argument
+to `generate_scenarios` wasn't always set to match, the same "right reasoning,
+wrong structured output" pattern as the itemized-costs bug in §7, just at a
+much lower and, so far, not-clearly-actionable frequency. Left unfixed pending
+more variance data rather than prompt-patched off one sample. Full
+chronological write-up (with before/after evidence for every finding above):
+[`evals.html`](evals.html).
 
 ---
 
