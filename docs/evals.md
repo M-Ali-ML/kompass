@@ -76,15 +76,15 @@ flowchart TD
 
 | File | Responsibility |
 | --- | --- |
-| `schema.py` | Typed models: `CaseInputs` (incl. `followups` for multi-turn), `CaseMeta` (the expected-behavior contract), `RunTrace` (serializable run projection). |
+| `schema.py` | Typed models: `CaseInputs` (incl. `followups` for multi-turn, `case_name`/`case_category` for Langfuse tagging), `CaseMeta` (the expected-behavior contract), `RunTrace` (serializable run projection). |
 | `fixtures.py` | Adversarial catalogs: flight routes, per-city hotels, keyword-matched research answers. |
 | `fakes.py` | `FlightServicePort` / `AccommodationServicePort` / `ResearchServicePort` implementations over the fixtures; each records its calls. |
 | `harness.py` | `run_case(...)` / `run_conversation(...)` → runs the real agent headless (single-turn or multi-turn) with fakes injected; extracts an `EvalRunResult`. |
 | `judge.py` | The LLM-as-judge: a small structured-output agent (`Verdict{passed, reason}`) scoring soft criteria, decoupled from the agent-under-test's model. |
 | `evaluators.py` | Ten evaluators (7 deterministic + 3 judge-backed) that turn a `RunTrace` + `CaseMeta` into named pass/fail assertions. |
 | `cases.py` | The 30-case golden `Dataset` (Cases defined in Python). |
-| `tasks.py` | The pydantic-evals task: `CaseInputs → RunTrace`, dispatching to `run_case` or `run_conversation` (with optional model override). |
-| `run.py` | CLI runner: executes the dataset, prints/aggregates (incl. per-case flakiness across `--repeat`), writes the JSON report. |
+| `tasks.py` | The pydantic-evals task: `CaseInputs → RunTrace`, dispatching to `run_case` or `run_conversation` (with optional model override); wraps each call in `app.telemetry.trace_attributes(environment="eval", ...)` (see §10). |
+| `run.py` | CLI runner: executes the dataset, prints/aggregates (incl. per-case flakiness across `--repeat`), writes the JSON report; calls `init_telemetry()`/`flush_telemetry()` around the run. |
 | `dashboard.py` | Stdlib web UI that reads the report folder live. |
 
 ---
@@ -339,7 +339,56 @@ for every finding above): [`evals.html`](evals.html).
 
 ---
 
-## 10. Design decisions
+## 10. Langfuse observability: telling eval traces from live traffic
+
+Every agent run — production or eval — already flows through the same
+[`app/telemetry.py`](../backend/app/telemetry.py) Langfuse/OpenTelemetry
+instrumentation (`Agent.instrument_all()`, wired once at process startup). The
+eval suite reuses that exact pipeline rather than a separate one, so a trace
+looks identical whether it came from a real trip or a `--case` debug run —
+except for the attributes that mark which is which:
+
+| Attribute | Production (`app/api/routes.py`) | Eval (`evals/tasks.py`) |
+| --- | --- | --- |
+| `environment` | `"production"` | `"eval"` |
+| `session_id` | the trip's thread id (groups a conversation's turns) | the eval run's timestamp (groups every case + repeat in one `evals.run` invocation) |
+| `trace_name` | (unset — defaults to the agent/operation name) | the case name (e.g. `group_of_six_propagation`) |
+| `tags` | `["kompass-agent"]` | `["kompass-eval", <category>]` |
+| `metadata` | — | `eval_case`, `eval_category`, `eval_repeat` (which repeat, for `--repeat` runs), `eval_model` |
+
+Mechanically: `evals/schema.py`'s `CaseInputs` carries `case_name`/
+`case_category`, auto-populated from each `Case` by `build_dataset()` (the
+pydantic-evals task callable only receives `CaseInputs`, not the surrounding
+`Case`, so this is how the name/category survive to trace time). `evals/tasks.py`
+wraps each case's `run_case`/`run_conversation` call in
+`telemetry.trace_attributes(...)` with the table above; `evals/run.py` calls
+`init_telemetry()` once up front and `flush_telemetry()` in a `finally` block
+(a short-lived CLI process would otherwise exit before the batched OTel
+exporter flushes). All of this is a no-op — zero overhead, no branching needed
+at call sites — when `LANGFUSE_*` keys aren't configured.
+
+**Why this matters for debugging**: every case in this doc's Phase 3 findings
+(§9) — the "friends"-triggered fabrication, the `already_have_flights` 504s,
+the output-retry exhaustion — was root-caused by re-running the case headless
+and eyeballing printed tool calls. With this wired in, the same investigation
+is a Langfuse query instead: filter `environment = eval`, `traceName =
+group_of_six_propagation`, and get the full input/output/token/cost trace for
+every attempt, side by side with the LLM's exact reasoning and tool-call
+arguments — no custom debug scripts needed. Filtering `environment =
+production` excludes all of this eval noise from real-traffic dashboards, and
+vice versa.
+
+This is distinct from the roadmap's optional item 3.5 (Langfuse **dataset**
+runs — Langfuse's structured "run this dataset, get a scored table" feature):
+what's described here is trace-level tagging for ad-hoc debugging, verified
+working end-to-end (a live `evals.run --case` invocation was confirmed to land
+in Langfuse with the correct `environment`/`session_id`/`tags`/`metadata` via
+the Langfuse API). Publishing to Langfuse's Datasets product for
+version-over-version score history is still open.
+
+---
+
+## 11. Design decisions
 
 | Decision | Choice | Rationale |
 | --- | --- | --- |
@@ -358,7 +407,7 @@ for every finding above): [`evals.html`](evals.html).
 
 ---
 
-## 11. Roadmap
+## 12. Roadmap
 
 - **Phase 1 — ✅ Headless evaluability.** `ResearchServicePort` extraction,
   deterministic fakes, the harness. All 60 backend tests green.
@@ -370,16 +419,17 @@ for every finding above): [`evals.html`](evals.html).
   (`run_conversation`); ✅ grown to 30 cases across 7 categories; ✅ a first
   variance pass that both taught an infra-vs-signal lesson and isolated a real,
   reproducible output-retry issue on heavy single-plan synthesis (still open —
-  see §9). ⬜ Remaining: a clean multi-repeat variance run (now that concurrency
-  is tuned) to set defensible per-category CI thresholds; optional Langfuse
-  dataset-run publishing (3.5).
+  see §9); ✅ Langfuse trace tagging for eval vs. live traffic (§10). ⬜
+  Remaining: a clean multi-repeat variance run (now that concurrency is tuned)
+  to set defensible per-category CI thresholds; optional Langfuse
+  dataset-run publishing (3.5, distinct from the trace tagging above).
 - **Phase 4 — ⬜ CI gating.** A separate `evals.yml` workflow, path-filtered to
   `backend/app/agent/**` (incl. the system prompt), that fails a PR when a
   category pass rate drops below threshold — "eval-gated prompt deployment."
 
 ---
 
-## 12. What this demonstrates
+## 13. What this demonstrates
 
 - **Agent evaluation as an engineering discipline**, not vibes: golden dataset,
   deterministic harness, typed expectation contracts, categorized pass rates.

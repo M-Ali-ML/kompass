@@ -87,8 +87,16 @@ def trace_attributes(
     user_id: str | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    environment: str | None = None,
+    trace_name: str | None = None,
 ):
     """Context manager that stamps trace-level attributes onto spans created within it.
+
+    ``environment`` maps to Langfuse's first-class ``langfuse.environment``
+    attribute (lowercase alphanumeric + hyphens/underscores, e.g.
+    ``"production"`` / ``"eval"``) — the recommended way to keep a shared
+    Langfuse project's live traffic and eval-suite runs filterable/separable
+    in the UI without mixing them into the same trace population.
 
     Returns a no-op context manager when telemetry is disabled so callers don't
     need to branch. Attributes only attach to spans created *after* the context
@@ -104,6 +112,8 @@ def trace_attributes(
         user_id=user_id,
         tags=tags,
         metadata=metadata,
+        environment=environment,
+        trace_name=trace_name,
     )
 
 
@@ -114,6 +124,7 @@ async def stream_with_attributes(
     user_id: str | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    environment: str | None = None,
 ) -> AsyncIterator[Any]:
     """Wrap a streaming-response body iterator so trace attributes cover the run.
 
@@ -129,6 +140,7 @@ async def stream_with_attributes(
         user_id=user_id,
         tags=tags,
         metadata=metadata,
+        environment=environment,
     ):
         async for chunk in body_iterator:
             yield chunk

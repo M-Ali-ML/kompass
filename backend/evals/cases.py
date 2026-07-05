@@ -401,20 +401,28 @@ _CASES: list[Case] = [
         inputs=CaseInputs(
             prompt=(
                 "Plan a 7-day trip from Berlin for 2 people in October 2026 visiting "
-                "Prague and then Vienna BY TRAIN, with a hotel in each city. One "
-                "definitive plan; decide sensibly, no clarifications."
+                "Prague and then Vienna. Travel entirely BY TRAIN for every leg — no "
+                "flights at all, including the way back to Berlin — with a hotel in "
+                "each city. One definitive plan; decide sensibly, no clarifications."
             ),
         ),
         metadata=CaseMeta(
             category=Category.ITINERARY_QUALITY,
-            notes="Multi-city rail chain: a train per hop, a hotel per city.",
+            notes=(
+                "Multi-city rail chain: a train per hop (incl. the return leg), a "
+                "hotel per city. Prompt is explicit about 'no flights at all' — the "
+                "original wording only said the Prague->Vienna hop was by train, "
+                "which left the Berlin legs ambiguous and the model reasonably flew "
+                "them (see docs/evals.html)."
+            ),
             required_tools=[
                 "search_ground_transport",
                 "search_accommodations",
                 "generate_scenarios",
             ],
+            forbidden_tools=["search_flights", "find_cheapest_dates"],
             expect_islands=["prague", "vienna"],
-            min_ground_legs=2,
+            min_ground_legs=3,
         ),
     ),
     Case(
@@ -557,6 +565,12 @@ _CASES: list[Case] = [
 
 def build_dataset() -> Dataset:
     """The golden dataset with all deterministic evaluators attached."""
+    for case in _CASES:
+        # Stamped onto CaseInputs (not just Case.name) because pydantic-evals'
+        # task callable only receives the inputs — see evals/tasks.py, which
+        # uses these to name/tag each case's Langfuse trace.
+        case.inputs.case_name = case.name
+        case.inputs.case_category = case.metadata.category.value
     return Dataset(name="kompass-golden", cases=_CASES, evaluators=list(ALL_EVALUATORS))
 
 

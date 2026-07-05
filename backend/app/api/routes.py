@@ -245,9 +245,11 @@ async def copilotkit_endpoint(
     # than the dispatch call. `session_id` groups all turns of a trip thread in
     # Langfuse; tags make agent traces easy to filter. (`session_id` is also
     # emitted automatically via the AG-UI threadId -> gen_ai.conversation.id
-    # mapping, but we set it explicitly to be robust and add tags.) Only
-    # streaming responses expose `body_iterator`; a non-streaming error response
-    # (e.g. a 422) is returned untouched.
+    # mapping, but we set it explicitly to be robust and add tags.)
+    # `environment="production"` marks these as real traffic so they're never
+    # mixed with `environment="eval"` traces from the eval suite (evals/tasks.py)
+    # in Langfuse's UI/filters. Only streaming responses expose `body_iterator`;
+    # a non-streaming error response (e.g. a 422) is returned untouched.
     body_iterator = getattr(response, "body_iterator", None)
     if body_iterator is not None:
         # Defeat SSE buffering so AG-UI events reach the browser token-by-token
@@ -267,6 +269,7 @@ async def copilotkit_endpoint(
                 body_iterator,
                 session_id=thread_id,
                 tags=["kompass-agent"],
+                environment="production",
             )
         response.body_iterator = body_iterator
 
