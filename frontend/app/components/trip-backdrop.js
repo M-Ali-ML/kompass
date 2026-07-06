@@ -32,31 +32,48 @@ export function TripBackdrop({
   // Loaded opacity (0-100). Applied inline so it composes cleanly with the
   // fade-in transition instead of fighting a Tailwind opacity utility.
   intensity = 100,
+  // When true, show a candy shimmer overlay while the first load is in flight,
+  // so a prominent banner reads as "loading" rather than blank. It clears on
+  // both success and error (a 404 for a not-yet-generated image), letting the
+  // container's own placeholder show through instead of shimmering forever.
+  withShimmer = false,
 }) {
   const [loaded, setLoaded] = useState(false);
+  const [settled, setSettled] = useState(false);
   const src = tripBackgroundImageUrl(tripId, version);
   if (!src) return null;
 
   const mask = FADE_MASKS[fade];
 
   return (
-    // A raw <img> (not next/image) is intentional: it self-hides until the
-    // backend image loads and degrades on 404, and the source is a dynamic API
-    // route, so Next's optimizer brings no benefit here.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt=""
-      aria-hidden="true"
-      onLoad={() => setLoaded(true)}
-      onError={() => setLoaded(false)}
-      className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
-        blur ? "blur-[2px]" : ""
-      } ${className}`}
-      style={{
-        opacity: loaded ? intensity / 100 : 0,
-        ...(mask ? { maskImage: mask, WebkitMaskImage: mask } : {}),
-      }}
-    />
+    <>
+      {withShimmer && !settled && (
+        <span className="shimmer pointer-events-none absolute inset-0" aria-hidden="true" />
+      )}
+      {/* A raw <img> (not next/image) is intentional: it self-hides until the
+          backend image loads and degrades on 404, and the source is a dynamic
+          API route, so Next's optimizer brings no benefit here. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        aria-hidden="true"
+        onLoad={() => {
+          setLoaded(true);
+          setSettled(true);
+        }}
+        onError={() => {
+          setLoaded(false);
+          setSettled(true);
+        }}
+        className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+          blur ? "blur-[2px]" : ""
+        } ${className}`}
+        style={{
+          opacity: loaded ? intensity / 100 : 0,
+          ...(mask ? { maskImage: mask, WebkitMaskImage: mask } : {}),
+        }}
+      />
+    </>
   );
 }

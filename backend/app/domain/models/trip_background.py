@@ -8,7 +8,7 @@ jobs.
 """
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, LargeBinary, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, LargeBinary, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -35,6 +35,16 @@ class TripBackground(Base):
     # debugging and for detecting whether an explicit regen changed the subject).
     destination: Mapped[str | None] = mapped_column(String, nullable=True)
     scene_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Denormalized summary of the trip's latest generated scenario, surfaced as
+    # at-a-glance tags in the trip sidebar. Written by `generate_scenarios` from
+    # its first scenario, overwritten on every successful call so the tags track
+    # the current plan. All nullable — a trip only has these once it reaches the
+    # planning stage. Mirrors the queryable columns on `SavedScenario`.
+    start_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    end_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    currency: Mapped[str | None] = mapped_column(String, nullable=True)
+    grand_total: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # The encoded image bytes + their MIME type (null until ready).
     image: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)

@@ -92,3 +92,18 @@ def _apply_lightweight_migrations(conn) -> None:
     if cols and "message_history" not in cols:
         logger.info("Migrating: adding trips.message_history column")
         conn.execute(text("ALTER TABLE trips ADD COLUMN message_history JSON"))
+
+    # Denormalized scenario summary on trip_backgrounds (sidebar tags).
+    bg_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(trip_backgrounds)"))}
+    bg_additions = {
+        "start_date": "VARCHAR",
+        "end_date": "VARCHAR",
+        "currency": "VARCHAR",
+        "grand_total": "FLOAT",
+    }
+    for name, col_type in bg_additions.items():
+        if bg_cols and name not in bg_cols:
+            logger.info("Migrating: adding trip_backgrounds.%s column", name)
+            conn.execute(
+                text(f"ALTER TABLE trip_backgrounds ADD COLUMN {name} {col_type}")
+            )

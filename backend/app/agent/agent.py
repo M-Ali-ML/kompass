@@ -4,8 +4,10 @@ from collections import Counter
 from datetime import date, datetime
 from pydantic_ai import Agent, RunContext
 from app.config import settings
+from app.adapters.sqlite_trip_background_repository import SqliteTripBackgroundRepository
 from app.agent.dependency import AgentDependencies
 from app.agent.image_agent import spawn_trip_background
+from app.db import SessionLocal
 from app.domain import Scenario, UserPreferences
 
 logger = logging.getLogger("kompass.agent")
@@ -479,6 +481,27 @@ async def generate_scenarios(
         f"generate_scenarios destination={destination!r} count={len(scenarios)} "
         f"currency={currency} estimated={estimated}"
     )
+
+    # Record a denormalized summary of the leading scenario so the trip sidebar
+    # can show at-a-glance tags (destination, duration, budget). Overwritten on
+    # every successful call so the tags track the latest plan. Best-effort: tag
+    # persistence must never break scenario rendering.
+    if ctx.deps.trip_id:
+        lead = scenarios[0]
+        try:
+            await SqliteTripBackgroundRepository(SessionLocal).set_scenario_summary(
+                ctx.deps.trip_id,
+                destination=destination,
+                start_date=lead.start_date.isoformat(),
+                end_date=lead.end_date.isoformat(),
+                currency=currency,
+                grand_total=lead.cost_breakdown.grand_total,
+            )
+        except Exception as e:  # noqa: BLE001 - tags are cosmetic; never fail the tool
+            logger.error(
+                "Failed to store scenario summary for trip %s: %s", ctx.deps.trip_id, e
+            )
+
     return {
         "destination": destination,
         "currency": currency,

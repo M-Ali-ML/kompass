@@ -1,9 +1,10 @@
 import { AlertTriangle } from "lucide-react";
 import { SearchProgress } from "./search-progress";
 
-// All tool cards share a single width so the chat-side column reads as one tidy,
-// aligned stack regardless of which tool produced the card.
-const CARD_WIDTH = "max-w-2xl";
+// All tool cards fill the full chat column so they line up flush with the
+// reasoning bubble and plain assistant text (both capped by CopilotKit's
+// max-w-3xl container), reading as one tidy, aligned stack.
+const CARD_WIDTH = "w-full";
 
 // Shared shell for generative-UI tool cards: the rounded surface, the
 // icon + uppercase label header, an optional "approx" badge, and a body slot.

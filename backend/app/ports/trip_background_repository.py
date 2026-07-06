@@ -37,5 +37,23 @@ class TripBackgroundRepository(ABC):
         """Update the lifecycle status (e.g. to ``error``) for a trip."""
 
     @abstractmethod
+    async def set_scenario_summary(
+        self,
+        trip_id: str,
+        *,
+        destination: str | None,
+        start_date: str | None,
+        end_date: str | None,
+        currency: str | None,
+        grand_total: float | None,
+    ) -> None:
+        """Upsert the denormalized scenario summary used for sidebar tags.
+
+        Creates the row (status ``summary``) if none exists yet, so it never
+        blocks a later image-generation claim; when a row already exists it only
+        refreshes the summary fields and leaves the image lifecycle untouched.
+        """
+
+    @abstractmethod
     async def clear(self, trip_id: str) -> None:
         """Delete the background row for a trip. No-op if absent."""

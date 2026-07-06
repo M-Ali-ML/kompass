@@ -123,6 +123,25 @@ def _encode_image(raw: bytes, mime: str) -> tuple[bytes, str]:
 _IMAGE_TIMEOUT_S = 120.0
 
 
+def _image_config():
+    """Build the image-generation config, requesting a landscape aspect ratio so
+    the vibe image fills its wide banner frame. Returns None when no ratio is
+    configured (model default) or the installed google-genai lacks the type, so
+    generation degrades to the previous square behavior instead of failing."""
+    ratio = (settings.image_aspect_ratio or "").strip()
+    if not ratio:
+        return None
+    try:
+        from google.genai import types
+
+        return types.GenerateContentConfig(
+            image_config=types.ImageConfig(aspect_ratio=ratio)
+        )
+    except Exception as e:  # noqa: BLE001 - config is an enhancement, never a hard dep
+        logger.warning("Image aspect-ratio config unavailable (%s); using default", e)
+        return None
+
+
 async def _generate_image(scene_prompt: str) -> tuple[bytes, str]:
     """Render the scene with the configured Gemini image model. Returns
     (image_bytes, mime). Raises if the model returns no image part."""
@@ -130,6 +149,7 @@ async def _generate_image(scene_prompt: str) -> tuple[bytes, str]:
         _client().aio.models.generate_content(
             model=settings.image_model,
             contents=scene_prompt,
+            config=_image_config(),
         ),
         timeout=_IMAGE_TIMEOUT_S,
     )

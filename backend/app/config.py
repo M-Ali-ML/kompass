@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     image_model: str = Field("gemini-2.5-flash-image", alias="IMAGE_MODEL")
     image_scene_model: str = Field("google:gemini-2.5-flash-lite", alias="IMAGE_SCENE_MODEL")
     background_image_enabled: bool = Field(True, alias="BACKGROUND_IMAGE_ENABLED")
+    # Aspect ratio requested from the image model. The vibe image is shown as a
+    # wide banner (trip sidebar + scenario modal header), so a landscape ratio
+    # fills that frame with the full composition instead of a center-cropped
+    # slice of a square. Set empty to let the model pick its default (square).
+    image_aspect_ratio: str = Field("16:9", alias="IMAGE_ASPECT_RATIO")
 
     # Flights: official Kiwi.com MCP server (remote, streamable HTTP, no API key).
     # Override only to point at a different host/proxy.

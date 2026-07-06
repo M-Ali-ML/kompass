@@ -27,6 +27,15 @@ class SqliteTripBackgroundRepository(TripBackgroundRepository):
         async with self._session_factory() as session:
             existing = await session.get(TripBackground, trip_id)
             if existing is not None:
+                # A "summary" row carries only scenario tags — no image job has
+                # started yet — so claim it by flipping to "pending". Any other
+                # status (pending/ready/error) means the slot is already owned.
+                if existing.status == "summary":
+                    existing.status = "pending"
+                    existing.updated_at = datetime.now(timezone.utc)
+                    await session.commit()
+                    logger.info("Claimed background generation for trip %s (from summary)", trip_id)
+                    return True
                 return False
             session.add(TripBackground(trip_id=trip_id, status="pending"))
             try:
@@ -75,6 +84,43 @@ class SqliteTripBackgroundRepository(TripBackgroundRepository):
                 row.status = status
             row.updated_at = datetime.now(timezone.utc)
             await session.commit()
+
+    async def set_scenario_summary(
+        self,
+        trip_id: str,
+        *,
+        destination: str | None,
+        start_date: str | None,
+        end_date: str | None,
+        currency: str | None,
+        grand_total: float | None,
+    ) -> None:
+        async with self._session_factory() as session:
+            row = await session.get(TripBackground, trip_id)
+            if row is None:
+                # No image lifecycle yet — a "summary" row is claimable later by
+                # try_begin, so recording tags here never blocks the image.
+                row = TripBackground(trip_id=trip_id, status="summary")
+                session.add(row)
+            # Refresh the tag fields; leave the image status/bytes untouched so a
+            # tag update on a later plan never disturbs an already-generated image.
+            if destination:
+                row.destination = destination
+            row.start_date = start_date
+            row.end_date = end_date
+            row.currency = currency
+            row.grand_total = grand_total
+            row.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            logger.info(
+                "Stored scenario summary for trip %s (dest=%r, %s..%s, total=%s %s)",
+                trip_id,
+                destination,
+                start_date,
+                end_date,
+                grand_total,
+                currency,
+            )
 
     async def clear(self, trip_id: str) -> None:
         async with self._session_factory() as session:

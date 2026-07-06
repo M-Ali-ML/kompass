@@ -20,10 +20,27 @@ class SqliteTripRepository(TripRepository):
 
     async def list_trips(self) -> list[Trip]:
         async with self._session_factory() as session:
+            # Outer-join the per-trip background row so the sidebar can render
+            # at-a-glance tags (destination, dates, budget) alongside each trip.
+            # The summary fields are attached as transient (non-mapped) instance
+            # attributes so the return type stays `list[Trip]` and callers that
+            # don't join (create_trip/get_trip) simply see the defaults — no async
+            # lazy-load surprise that a mapped relationship would introduce.
             result = await session.execute(
-                select(Trip).order_by(Trip.updated_at.desc())
+                select(Trip, TripBackground)
+                .outerjoin(TripBackground, TripBackground.trip_id == Trip.id)
+                .order_by(Trip.updated_at.desc())
             )
-            return list(result.scalars().all())
+            trips: list[Trip] = []
+            for trip, background in result.all():
+                if background is not None:
+                    trip.bg_destination = background.destination
+                    trip.bg_start_date = background.start_date
+                    trip.bg_end_date = background.end_date
+                    trip.bg_currency = background.currency
+                    trip.bg_grand_total = background.grand_total
+                trips.append(trip)
+            return trips
 
     async def get_trip(self, trip_id: str) -> Trip | None:
         async with self._session_factory() as session:

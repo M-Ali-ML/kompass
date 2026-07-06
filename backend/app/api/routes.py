@@ -144,6 +144,27 @@ def extract_preferences_from_history(messages) -> UserPreferences:
     return prefs
 
 
+def _run_generated_scenarios(result) -> bool:
+    """True if this run produced a ``generate_scenarios`` tool result.
+
+    Used to defer the trip's background-image generation until the plan is
+    concrete. A rejected/early return still counts (the conversation has clearly
+    reached the planning stage by then) — the image job is idempotent, so the
+    worst case is one cheap, guarded no-op spawn.
+    """
+    try:
+        for msg in result.all_messages():
+            for part in getattr(msg, "parts", []):
+                if (
+                    getattr(part, "part_kind", None) == "tool-return"
+                    and getattr(part, "tool_name", None) == "generate_scenarios"
+                ):
+                    return True
+    except Exception:  # noqa: BLE001 - detection is best-effort; never break on_complete
+        return False
+    return False
+
+
 def extract_display_messages(model_messages) -> list[dict]:
     """Flatten PydanticAI message history into user/assistant text turns."""
     out: list[dict] = []
@@ -209,14 +230,6 @@ async def copilotkit_endpoint(
         except Exception as e:
             logger.error(f"Error upserting trip {thread_id}: {e}")
 
-    # Kick off the trip "vibe" background image as a fire-and-forget task so it
-    # runs concurrently with — and never stalls — the agent stream. It guards
-    # itself to run at most once per trip (and only once a destination is known).
-    if settings.background_image_enabled and thread_id:
-        convo_text = _conversation_text(ag_messages)
-        if convo_text.strip():
-            spawn_trip_background(thread_id, convo_text, user_preferences)
-
     deps = get_agent_dependencies(user_preferences=user_preferences, trip_id=thread_id)
 
     async def on_complete(result) -> None:
@@ -227,6 +240,17 @@ async def copilotkit_endpoint(
             await trip_repo.replace_messages(thread_id, display)
         except Exception as e:
             logger.error(f"Error persisting messages for trip {thread_id}: {e}")
+
+        # Kick off the trip "vibe" background image once the plan exists: we wait
+        # for a generate_scenarios result so the image — and the sidebar tags it
+        # shares a row with — reflect a committed destination/plan rather than an
+        # early, half-specified conversation. The image job guards itself to run
+        # at most once per trip, so re-running this on later turns is a cheap
+        # no-op that never re-describes the scene.
+        if settings.background_image_enabled and _run_generated_scenarios(result):
+            convo_text = _conversation_text(ag_messages)
+            if convo_text.strip():
+                spawn_trip_background(thread_id, convo_text, user_preferences)
 
     response = await AGUIAdapter.dispatch_request(
         request,
@@ -284,12 +308,19 @@ class CreateTripRequest(BaseModel):
 
 
 def _serialize_trip(trip) -> dict:
+    # `bg_*` are transient attributes set only by `list_trips` (from the joined
+    # TripBackground row); other callers fall back to None via getattr defaults.
     return {
         "id": trip.id,
         "title": trip.title,
         "status": trip.status,
         "created_at": trip.created_at.isoformat() if trip.created_at else None,
         "updated_at": trip.updated_at.isoformat() if trip.updated_at else None,
+        "destination": getattr(trip, "bg_destination", None),
+        "start_date": getattr(trip, "bg_start_date", None),
+        "end_date": getattr(trip, "bg_end_date", None),
+        "currency": getattr(trip, "bg_currency", None),
+        "grand_total": getattr(trip, "bg_grand_total", None),
     }
 
 
