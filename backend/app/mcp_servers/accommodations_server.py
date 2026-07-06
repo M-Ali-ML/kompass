@@ -50,6 +50,15 @@ _UNAVAILABLE_NOTE = (
     "Use the search_web tool for live hotel options and nightly rates."
 )
 
+# SerpApi Google Hotels ``property_types`` codes to request. ``sort_by=3``
+# (lowest price first) means the top-N cheapest results dominate the payload;
+# without this filter that's almost always dorm-bed Hostels (14) or shared-
+# house-style Inns (15) / Bed and breakfasts (19), whose "per night" rate is a
+# single bed, not a room — giving a badly skewed, unrealistically cheap view
+# of lodging costs. Restrict to normal private-room property types instead.
+# See https://serpapi.com/google-hotels-property-types
+_HOTEL_PROPERTY_TYPES = "12,13,16,17,18,20,21,22,23,24"
+
 
 def _api_key() -> str | None:
     key = os.getenv("SERPAPI_API_KEY")
@@ -273,6 +282,7 @@ def search_accommodations(
         "adults": max(guests, 1),
         "currency": currency,
         "sort_by": 3,  # lowest price first
+        "property_types": _HOTEL_PROPERTY_TYPES,  # exclude hostels/inns/B&Bs
     }
     if max_price is not None and max_price > 0:
         params["max_price"] = int(max_price)
