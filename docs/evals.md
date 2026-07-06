@@ -223,8 +223,21 @@ in priority order **CLI flag → env var (`backend/.env` or shell) → default**
 | --- | --- | --- | --- |
 | Agent under test | `--model` | `EVAL_MODEL` | `LLM_MODEL` (prod — "test what ships") |
 | LLM judge | `--judge-model` | `EVAL_JUDGE_MODEL` | `google:gemini-2.5-flash-lite` |
+| Judge fallback chain | — | `EVAL_JUDGE_FALLBACK_MODELS` | `google:gemini-2.0-flash-lite,google:gemini-2.5-flash` |
 
 Every JSON report records both `model` and `judge_model` for reproducibility.
+
+**Resilience against transient outages.** Gemini's cheap tiers occasionally
+return `503` ("high demand") under load — enough to silently drop a
+judge-backed assertion or fail an entire run over one model's momentary
+capacity ceiling. `judge.py` wraps the judge agent in PydanticAI's
+`FallbackModel`, retrying the next model in `EVAL_JUDGE_FALLBACK_MODELS`
+(comma-separated, default `google:gemini-2.0-flash-lite,google:gemini-2.5-flash`
+— separate Gemini capacity pools from the primary judge tier) on any
+`ModelAPIError`, which covers 503s. Only the judge gets a fallback chain; the
+agent-under-test's own model is untouched, keeping the decoupling intact.
+Verified end-to-end with a live judge call exercising the wrapped agent (see
+the log entry in [`evals.html`](evals.html)).
 
 ---
 
@@ -357,9 +370,26 @@ correctly called the price an estimate but the structured `estimated` argument
 to `generate_scenarios` wasn't always set to match, the same "right reasoning,
 wrong structured output" pattern as the itemized-costs bug in §7, just at a
 much lower and, so far, not-clearly-actionable frequency. Left unfixed pending
-more variance data rather than prompt-patched off one sample. Full
-chronological write-up (with before/after evidence for every finding above):
-[`evals.html`](evals.html).
+more variance data rather than prompt-patched off one sample.
+
+**Update, model migration A/B (2026-07-05):** the agent-under-test default
+moved from `gemini-2.5-flash` to `gemini-3.1-flash-lite`
+(`app/config.py`), validated same-day with an A/B rather than trusting the
+model card. A `--concurrency 4` run on the old model came back noisy —
+`human_in_the_loop` and `itinerary_quality` produced zero assertions after
+`429 RESOURCE_EXHAUSTED` quota errors ate most of the run, landing 62/63
+(98.4%) of what did execute. Re-running at `--concurrency 2` on the new
+model completed cleanly across all seven categories, 152/153 (99.3%), at
+roughly 34% lower per-case token cost. The same A/B also caught a genuine
+regression, not infra noise: `infeasible_budget_no_fabrication` now fails
+`no_overbudget_plan` (0/1) — the old model correctly declined a deliberately
+impossible budget; the new, cheaper model instead produces a plan that blows
+it. The migration shipped anyway (a clear win on 6/7 categories plus real
+cost savings), but this regression is tracked **open**, not silently
+absorbed into a still-good-looking headline number.
+
+Full chronological write-up (with before/after evidence for every finding
+above): [`evals.html`](evals.html).
 
 ---
 

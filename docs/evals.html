@@ -42,8 +42,8 @@
     <div class="stats">
       <div class="stat"><div class="num">30</div><div class="lbl">Golden cases</div></div>
       <div class="stat"><div class="num">7</div><div class="lbl">Categories · 10 evaluators</div></div>
-      <div class="stat"><div class="num">3</div><div class="lbl">Real regressions caught</div></div>
-      <div class="stat"><div class="num">100%</div><div class="lbl">Executed assertions, latest clean run</div></div>
+      <div class="stat"><div class="num">4</div><div class="lbl">Real regressions caught</div></div>
+      <div class="stat"><div class="num">99.3%</div><div class="lbl">Executed assertions, latest full run</div></div>
     </div>
   </section>
 
@@ -282,8 +282,6 @@
         <a href="evals.md#101-langfuse-dataset-runs-score-history-across-versions">evals.md §10.1</a> for the mechanics.</div>
       </div>
 
-    </div>
-
       <div class="t-item">
         <span class="pill done">Verified · 2026-07-05</span>
         <b>First full 30-case run through the dataset-run publisher — clean, plus one Langfuse tidiness fix</b>
@@ -326,6 +324,45 @@
         list, so the empty-<code>report.cases</code> fallback (every case errored) used to raise
         <code>TypeError</code>. 67 backend tests green.</div>
       </div>
+
+      <div class="t-item">
+        <span class="pill partial">Open · 2026-07-05</span>
+        <b>Migrating the agent's model to a cheaper tier paid for itself — and cost one honest regression</b>
+        <p>Swapped the agent-under-test default from <code>gemini-2.5-flash</code> to
+        <code>gemini-3.1-flash-lite</code> (<code>app/config.py</code>; the judge stayed decoupled on
+        <code>gemini-2.5-flash-lite</code> on purpose) and validated the switch with a same-day A/B rather than
+        trusting the model card. A <code>--concurrency 4</code> run on the old model came back noisy — several
+        categories (<code>human_in_the_loop</code>, <code>itinerary_quality</code>) produced zero assertions after
+        <code>429 RESOURCE_EXHAUSTED</code> quota errors ate most of the run, landing 62/63 (98.4%) of what did
+        execute. Re-running at <code>--concurrency 2</code> on the new model completed cleanly across all seven
+        categories — 152/153 (99.3%) — at roughly <b>34% lower</b> per-case token cost.</p>
+        <div class="callout"><b>Not just faster and cheaper — the same A/B caught a real regression:</b>
+        <code>infeasible_budget_no_fabrication</code> now fails <code>no_overbudget_plan</code> (0/1). Given a
+        deliberately impossible budget, the old model correctly declined it; the new, cheaper model instead
+        produces a plan that blows the budget — a fabrication-adjacent failure this case exists specifically to
+        catch. The model swap shipped anyway (a clear win on 6 of 7 categories plus real cost savings), but this
+        regression is logged <b>open</b>, not quietly absorbed into a headline pass-rate that still looks good.</div>
+      </div>
+
+      <div class="t-item">
+        <span class="pill done">Fixed · 2026-07-06</span>
+        <b>The judge itself started 503ing under load — wrapped it in a fallback chain instead of hoping it clears up</b>
+        <p><code>gemini-2.5-flash-lite</code> (the default <code>EVAL_JUDGE_MODEL</code>) began returning
+        <code>503 UNAVAILABLE</code> ("high demand") on judge-backed assertions
+        (<code>concise_recommendation</code>, <code>vibe_matches_activities</code>) — a transient Google-side
+        capacity ceiling, not a prompt or model problem, but enough to silently drop a check or fail a whole run.</p>
+        <p style="margin-top:10px"><b>Fix:</b> <code>judge.py</code> now wraps the judge agent in PydanticAI's
+        <code>FallbackModel</code>, retrying the next model in the new <code>EVAL_JUDGE_FALLBACK_MODELS</code> env
+        var (default <code>google:gemini-2.0-flash-lite,google:gemini-2.5-flash</code> — separate Gemini capacity
+        pools) on any <code>ModelAPIError</code>, which covers 503s. Only the judge gets the fallback chain; the
+        agent-under-test's own model is untouched, since decoupling the judge from prod is the whole point
+        (<a href="evals.md#6-evaluators--assertions">evals.md §6</a>).</p>
+        <div class="callout"><b>Verified, not just wired:</b> confirmed the judge agent resolves to a
+        <code>FallbackModel</code> wrapping all three tiers, then made a live judge call end-to-end and got a
+        correct verdict back.</div>
+      </div>
+
+    </div>
 
     <div class="callout" style="margin-top:30px">
       <b>Next entry TBD.</b> This section grows every time <code>uv run python -m evals.run</code> teaches us
