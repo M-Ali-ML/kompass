@@ -13,23 +13,23 @@
     "prepare": "cd .. && if [ -f scripts/setup-hooks.sh ]; then bash scripts/setup-hooks.sh; fi"
   },
   "dependencies": {
-    "@copilotkit/react-core": "^1.62.2",
-    "@copilotkit/react-ui": "^1.62.2",
-    "@copilotkit/runtime": "^1.62.2",
+    "@copilotkit/react-core": "^1.63.2",
+    "@copilotkit/react-ui": "^1.63.2",
+    "@copilotkit/runtime": "^1.63.2",
     "@vis.gl/react-google-maps": "^1.9.0",
-    "lucide-react": "^1.23.0",
-    "next": "16.2.10",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
-    "react-resizable-panels": "^4.12.1",
+    "lucide-react": "^1.27.0",
+    "next": "16.2.12",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-resizable-panels": "^4.12.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.2.12",
     "tailwindcss": "^4",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   }
 }
